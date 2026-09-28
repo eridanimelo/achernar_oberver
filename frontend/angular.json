@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "projects": {
+    "observer": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:application",
+          "options": {
+            "outputPath": "dist/observer",
+            "index": "src/index.html",
+            "browser": "src/main.ts",
+            "assets": ["src/assets"],
+            "tsConfig": "tsconfig.json"
+          }
+        },
+        "serve": {
+          "builder": "@angular-devkit/build-angular:dev-server",
+          "options": {
+            "proxyConfig": "proxy.conf.json"
+          },
+          "configurations": {
+            "development": {
+              "buildTarget": "observer:build"
+            }
+          },
+          "defaultConfiguration": "development"
+        }
+      }
+    }
+  },
+  "cli": {
+    "analytics": "8184cb8d-3030-4769-bbc9-ea5d214c29be"
+  }
+}

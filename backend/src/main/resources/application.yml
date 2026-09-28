@@ -1,0 +1,77 @@
+# server:
+#   port: 8080
+
+# spring:
+#   application:
+#     name: achernar-observer
+#   datasource:
+#     url: ${DATABASE_URL:jdbc:postgresql://postgres:5432/achernar_observer}
+#     username: ${DATABASE_USERNAME:achernar}
+#     password: ${DATABASE_PASSWORD:achernar}
+#   jpa:
+#     open-in-view: false
+#     hibernate:
+#       ddl-auto: update
+#     properties:
+#       hibernate:
+#         jdbc:
+#           time_zone: UTC
+#         type:
+#           json_format_mapper: jsonb
+
+# management:
+#   endpoints:
+#     web:
+#       exposure:
+#         include: health,info
+
+# observer:
+#   upstream: ${OBSERVER_UPSTREAM:http://host.docker.internal:4000}
+#   capture:
+#     payloads: ${OBSERVER_CAPTURE_PAYLOADS:true}
+#     headers: ${OBSERVER_CAPTURE_HEADERS:true}
+#     redact-secrets: ${OBSERVER_REDACT_SECRETS:true}
+
+#   default-project: ${OBSERVER_DEFAULT_PROJECT:UNKNOWN}
+
+
+
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: achernar-observer
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/achernar_observer}
+    username: ${DATABASE_USERNAME:achernar}
+    password: ${DATABASE_PASSWORD:achernar}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        type:
+          json_format_mapper: jsonb
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+observer:
+  upstream: ${OBSERVER_UPSTREAM:http://localhost:4000}
+
+  capture:
+    payloads: ${OBSERVER_CAPTURE_PAYLOADS:true}
+    headers: ${OBSERVER_CAPTURE_HEADERS:true}
+    redact-secrets: ${OBSERVER_REDACT_SECRETS:true}
+
+  default-project: ${OBSERVER_DEFAULT_PROJECT:UNKNOWN}

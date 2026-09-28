@@ -1,0 +1,219 @@
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><img src="assets/logo.png" alt="Achernar Observer" class="brand-logo"></div>
+    <div class="side-label">{{ 'nav.workspace' | translate }}</div>
+    <div class="nav active"><span class="nav-icon">▦</span> {{ 'nav.overview' | translate }}</div>
+    <div class="nav"><span class="nav-icon">◷</span> {{ 'nav.executions' | translate }} <span class="nav-count">{{ spans.length }}</span></div>
+    <div class="side-label spaced">{{ 'nav.projects' | translate }}</div>
+    <button class="project-link" [class.current]="!project" (click)="selectProject('')"><span class="project-dot"></span> {{ 'nav.allProjects' | translate }}</button>
+    <button class="project-link" *ngFor="let item of allProjects" [class.current]="project === item.project" (click)="selectProject(item.project)"><span class="project-dot violet"></span><span class="truncate">{{ item.project }}</span></button>
+    <div class="side-bottom"><span class="status-dot"></span><div><b>{{ 'nav.observerLocal' | translate }}</b><small>{{ 'nav.otlp' | translate }}</small></div></div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="breadcrumbs">{{ 'header.workspace' | translate }} <span>/</span> <strong>{{ 'header.observability' | translate }}</strong></div>
+      <div class="top-actions"><span class="live"><span class="status-dot"></span> {{ 'header.telemetry' | translate }}</span><button class="ghost" (click)="toggleRefresh()" [class.active]="autoRefresh">{{ (autoRefresh ? 'header.realtimeOn' : 'header.realtimeOff') | translate }}</button><button class="danger" (click)="clearAll()">{{ 'header.clear' | translate }}</button><button class="refresh" (click)="load()" [class.is-loading]="loading" aria-live="polite"><span class="spinner" *ngIf="loading" aria-hidden="true"></span>{{ (loading ? 'header.updating' : 'header.refresh') | translate }}</button><div class="settings-wrap"><button class="settings-btn" (click)="toggleSettings()" [class.active]="showSettings" [attr.aria-label]="'header.settings' | translate" [title]="'header.settings' | translate" aria-haspopup="dialog">⚙</button><div class="settings-backdrop" *ngIf="showSettings" (click)="closeSettings()"></div><div class="settings-pop" *ngIf="showSettings" role="dialog" [attr.aria-label]="'settings.title' | translate"><div class="settings-head"><strong>{{ 'settings.title' | translate }}</strong><button class="search-clear" (click)="closeSettings()" [attr.aria-label]="'settings.close' | translate">✕</button></div><div class="settings-section"><span class="settings-label">{{ 'settings.language' | translate }}</span><p class="settings-hint">{{ 'settings.languageHint' | translate }}</p><div class="settings-langs"><button *ngFor="let l of langs" [class.on]="i18n.lang() === l.code" (click)="setLang(l.code)"><span class="lang-check">{{ i18n.lang() === l.code ? '●' : '○' }}</span>{{ l.label }}</button></div></div></div></div></div>
+    </header>
+
+    <div class="content">
+      <div class="heading"><div><div class="eyebrow">{{ 'heading.eyebrow' | translate }} <span class="eyebrow-line"></span></div><h1>{{ 'heading.title' | translate }} <span class="heading-accent">.</span></h1><p>{{ 'heading.subtitle' | translate }}</p></div><div class="updated">{{ 'heading.updated' | translate }}<br><strong>{{ fmtDateTime(lastUpdated) }}</strong></div></div>
+
+      <section class="toolbar"><label class="filter-label">{{ 'toolbar.project' | translate }} <select [(ngModel)]="project" (change)="load()"><option value="">{{ 'toolbar.allProjects' | translate }}</option><option *ngFor="let item of allProjects" [value]="item.project">{{ item.project }}</option></select></label><label class="filter-label">{{ 'toolbar.period' | translate }} <select [(ngModel)]="period" (change)="load()"><option value="hour">{{ 'toolbar.hour' | translate }}</option><option value="today">{{ 'toolbar.today' | translate }}</option><option value="7d">{{ 'toolbar.last7' | translate }}</option><option value="30d">{{ 'toolbar.last30' | translate }}</option><option value="month">{{ 'toolbar.month' | translate }}</option><option value="all">{{ 'toolbar.all' | translate }}</option></select></label><div class="toolbar-spacer"></div><div class="filter-hint">{{ 'toolbar.hint' | translate }}</div></section>
+
+      <section class="metrics">
+        <article class="metric"><div class="metric-top">{{ 'metrics.totalTokens' | translate }} <span class="metric-icon purple">◇</span></div><div class="metric-value">{{ formatNumber(summary['tokens']) }}</div><div class="metric-foot">{{ 'metrics.totalFoot' | translate }}</div></article>
+        <article class="metric"><div class="metric-top">{{ 'metrics.llmCalls' | translate }} <span class="metric-icon blue">⌘</span></div><div class="metric-value">{{ formatNumber(summary['llmCalls']) }}</div><div class="metric-foot">{{ 'metrics.perCall' | translate:{n: formatNumber(summary['tokensPerCall'])} }}</div></article>
+        <article class="metric"><div class="metric-top">{{ 'metrics.cacheReuse' | translate }} <span class="metric-icon green">◈</span></div><div class="metric-value">{{ formatNumber(summary['cacheReadTokens']) }}</div><div class="metric-foot"><span class="positive">{{ formatDecimal1(cacheRate) }}%</span> {{ 'detail.ofInputSuffix' | translate }}</div></article>
+        <article class="metric"><div class="metric-top">{{ 'metrics.avgLatency' | translate }} <span class="metric-icon amber">◷</span></div><div class="metric-value">{{ formatDecimal1((summary['avgDurationMs'] || 0) / 1000) }}<small>s</small></div><div class="metric-foot">{{ 'metrics.avgFoot' | translate }}</div></article>
+      </section>
+
+      <section class="analytics">
+        <div class="panel chart-panel"><div class="panel-head"><div><div class="panel-kicker">{{ 'chart.kicker' | translate }}</div><h2>{{ 'chart.title' | translate }}</h2></div><span class="tag">{{ 'chart.tag' | translate }}</span></div><div class="chart" *ngIf="series.length; else noSeries"><div class="chart-grid"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0%</span></div><div class="chart-bars"><div class="chart-item" *ngFor="let item of series"><div class="chart-bar" [style.height.%]="barHeight(item.tokens)" [title]="item.timestamp + ' · ' + ('chart.tokensInTitle' | translate:{n: item.tokens})"><div class="chart-glow"></div></div><small>{{ timeLabel(item.timestamp) }}</small></div></div></div><ng-template #noSeries><div class="empty-chart"><div class="empty-symbol">▥</div>{{ 'chart.empty' | translate }}</div></ng-template></div>
+        <div class="panel breakdown"><div class="panel-head"><div><div class="panel-kicker">{{ 'breakdown.kicker' | translate }}</div><h2>{{ 'breakdown.title' | translate }}</h2></div></div><div class="breakdown-number">{{ formatNumber(summary['tokens']) }} <small>{{ 'breakdown.tokens' | translate }}</small></div><div class="stacked"><div class="stack-input" [style.width.%]="summary['tokens'] ? (summary['inputTokens'] || 0) / summary['tokens'] * 100 : 0"></div><div class="stack-output" [style.width.%]="summary['tokens'] ? (summary['outputTokens'] || 0) / summary['tokens'] * 100 : 0"></div></div><div class="legend"><div><span class="legend-dot in"></span> {{ 'breakdown.input' | translate }} <strong>{{ formatNumber(summary['inputTokens']) }}</strong></div><div><span class="legend-dot out"></span> {{ 'breakdown.output' | translate }} <strong>{{ formatNumber(summary['outputTokens']) }}</strong></div><div><span class="legend-dot cache"></span> {{ 'breakdown.cacheRead' | translate }} <strong>{{ formatNumber(summary['cacheReadTokens']) }}</strong></div><div><span class="legend-dot cachewrite"></span> {{ 'breakdown.cacheWrite' | translate }} <strong>{{ formatNumber(summary['cacheWriteTokens']) }}</strong></div></div><p class="hint">{{ 'breakdown.hint' | translate }}</p></div>
+      </section>
+
+      <section class="panel project-panel"><div class="panel-head"><div><div class="panel-kicker">{{ 'projects.kicker' | translate }}</div><h2>{{ 'projects.title' | translate }} <span class="count">{{ projects.length }}</span></h2></div></div><div class="table-scroll"><table><thead><tr><th>{{ 'projects.thProject' | translate }}</th><th>{{ 'projects.thSessions' | translate }}</th><th>{{ 'projects.thCalls' | translate }}</th><th>{{ 'projects.thInput' | translate }}</th><th>{{ 'projects.thOutput' | translate }}</th><th>{{ 'projects.thCache' | translate }}</th><th>{{ 'projects.thTotal' | translate }}</th><th></th></tr></thead><tbody><tr *ngFor="let item of projects" (click)="selectProject(item.project)"><td><span class="project-avatar">{{ (item.project || '?').slice(0,1).toUpperCase() }}</span><strong>{{ item.project }}</strong></td><td>{{ item.sessions }}</td><td>{{ item.llmCalls }}</td><td>{{ formatNumber(item.inputTokens) }}</td><td>{{ formatNumber(item.outputTokens) }}</td><td>{{ formatNumber(item.cacheReadTokens) }}</td><td class="emphasis">{{ formatNumber(item.tokens) }}</td><td class="arrow">↗</td></tr><tr *ngIf="!projects.length"><td colspan="8" class="empty-row">{{ 'projects.empty' | translate }}</td></tr></tbody></table></div></section>
+
+      <section class="execution-layout">
+        <div class="panel execution-panel">
+          <div class="panel-head"><div><div class="panel-kicker">{{ 'executions.kicker' | translate }}</div><h2>{{ 'executions.title' | translate }}</h2></div><span class="count">{{ visibleSpans.length }}</span></div>
+          <div class="search"><span>⌕</span><input [(ngModel)]="search" (ngModelChange)="onSearchChange()" (keyup.enter)="applyFilters()" [placeholder]="'executions.searchPlaceholder' | translate" [attr.aria-label]="'executions.searchPlaceholder' | translate"><button class="search-clear" *ngIf="search" (click)="clearSearch()" [attr.aria-label]="'executions.searchClear' | translate">✕</button><span class="search-loading" *ngIf="loading" aria-hidden="true"><span class="spinner spinner-sm"></span></span></div>
+          <label class="technical-toggle"><input type="checkbox" [(ngModel)]="showTechnicalSpans" (change)="applyFilters()"> {{ 'executions.showTechnical' | translate }}</label>
+          <div class="execution-list" [class.is-loading]="loading"><div class="skeleton-row" *ngIf="loading && !visibleSpans.length" aria-hidden="true"><span></span><span></span><span></span></div><button *ngFor="let span of visibleSpans" class="execution" [class.selected]="selected?.id === span.id" (click)="selectSpan(span)"><span class="kind-icon" [class.llm]="span.kind === 'llm'">{{ span.kind === 'llm' ? '✧' : '⌁' }}</span><span class="exec-info"><strong>{{ span.model || span.name || ('executions.event' | translate) }}</strong><small>{{ span.project || ('executions.unknown' | translate) }} · {{ fmtTime(span.startedAt) }}</small></span><span class="exec-end"><b>{{ span.kind === 'llm' ? formatNumber(span.totalTokens) : ('executions.span' | translate) }}</b><small>{{ span.durationMs || 0 }} ms</small></span></button><div class="empty-list" *ngIf="!loading && !visibleSpans.length">{{ 'executions.empty' | translate }}</div><div class="empty-list loading-hint" *ngIf="loading && visibleSpans.length">{{ 'executions.updating' | translate }}</div></div><div class="pager"><button (click)="previousPage()" [disabled]="page === 0">{{ 'executions.prev' | translate }}</button><span>{{ 'executions.pager' | translate:{page: page + 1, total: totalPages || 1, count: totalElements} }}</span><button (click)="nextPage()" [disabled]="page + 1 >= totalPages">{{ 'executions.next' | translate }}</button></div>
+        </div>
+
+        <div class="panel detail-panel wide-detail">
+          <div class="panel-head"><div><div class="panel-kicker">{{ 'detail.kicker' | translate }}</div><h2>{{ 'detail.title' | translate }}</h2></div><span class="tag" *ngIf="selected">{{ selected.kind }}</span><span class="tag loading-tag" *ngIf="detailLoading">{{ 'detail.loading' | translate }}</span></div>
+          <ng-container *ngIf="selected; else noSelection">
+            <div class="trace-hero">
+              <div><div class="detail-title">{{ selected.model || selected.name }}</div><div class="detail-sub">{{ selected.project || ('executions.unknown' | translate) }} · {{ fmtDateTime(selected.startedAt) }}</div></div>
+              <span class="status-pill" [class.ok]="selected.status === 200">● {{ selected.status || ('detail.noStatus' | translate) }}</span>
+            </div>
+
+            <div class="trace-metrics" *ngIf="selected.kind === 'llm'">
+              <div><span>{{ 'detail.input' | translate }}</span><strong>{{ formatNumber(selected.inputTokens) }}</strong><small>{{ formatInteger(selected.inputTokens) }} {{ 'detail.tokensWord' | translate }}</small></div>
+              <div class="cache"><span>{{ 'detail.cache' | translate }}</span><strong>{{ formatNumber(selected.cacheReadTokens) }}</strong><small>{{ formatDecimal1(selectedCacheRate) }}{{ 'detail.ofInputSuffix' | translate }}</small></div>
+              <button class="real-input-card" (click)="toggleRealPrompt()" [class.open]="showRealPrompt" [title]="'cacheTab.showReal' | translate"><span>{{ 'detail.realInput' | translate }}</span><strong>{{ formatNumber(selectedRealInput) }}</strong><small>{{ 'detail.notCached' | translate }} · {{ (showRealPrompt ? 'detail.hidePrompt' : 'detail.viewPrompt') | translate }}</small></button>
+              <div><span>{{ 'detail.output' | translate }}</span><strong>{{ formatNumber(selected.outputTokens) }}</strong><small>{{ formatInteger(selected.outputTokens) }} {{ 'detail.tokensWord' | translate }}</small></div>
+            </div>
+            <div class="real-prompt-box" *ngIf="selected.kind === 'llm' && showRealPrompt">
+              <div class="real-prompt-head"><div><strong>{{ 'detail.realTitle' | translate }}</strong><p>{{ 'detail.realDesc' | translate:{chars: formatInteger(realPromptChars), n: realPromptSegments.length} }}</p></div><button class="ghost mini-btn" (click)="goToConversation()">{{ 'detail.viewInConversation' | translate }}</button></div>
+              <div class="real-prompt-list" *ngIf="realPromptSegments.length; else noRealPrompt">
+                <div class="real-prompt-msg" *ngFor="let seg of realPromptSegments">
+                  <div class="timeline-dot" [attr.data-role]="seg.role">{{ roleIcon(seg.role) }}</div>
+                  <div><div class="timeline-head">{{ roleLabel(seg.role) }} <span class="partial-tag" *ngIf="seg.isPartial">{{ 'detail.partial' | translate }}</span></div><pre class="message-content" *ngIf="seg.content">{{ seg.content }}</pre>
+                    <div class="tool-call" *ngFor="let tool of seg.toolCalls"><div class="tool-head"><span class="tool-badge" [class.mcp]="tool.category === 'mcp'">{{ tool.category === 'mcp' ? 'MCP' : 'TOOL' }}</span><strong>{{ tool.name }}</strong></div><pre *ngIf="tool.arguments != null">{{ prettyJson(tool.arguments) }}</pre></div>
+                  </div>
+                </div>
+              </div>
+              <ng-template #noRealPrompt><div class="empty-list">{{ 'detail.realEmpty' | translate }}</div></ng-template>
+            </div>
+
+            <div class="technical-span-note" *ngIf="selected.kind !== 'llm'">{{ 'detail.technicalNote' | translate }}</div>
+
+            <div class="tabs modern-tabs"><button [class.on]="detailTab === 'overview'" (click)="detailTab = 'overview'">{{ 'tabs.overview' | translate }}</button><button [class.on]="detailTab === 'flow'" (click)="detailTab = 'flow'">{{ 'tabs.flow' | translate }} <span>{{ flowNodes.length }}</span></button><button [class.on]="detailTab === 'conversation'" (click)="detailTab = 'conversation'">{{ 'tabs.conversation' | translate }} <span>{{ conversation.length }}</span></button><button [class.on]="detailTab === 'tools'" (click)="detailTab = 'tools'">{{ 'tabs.tools' | translate }} <span>{{ usedTools.length }}</span></button><button [class.on]="detailTab === 'cache'" (click)="detailTab = 'cache'">{{ 'tabs.cache' | translate }}</button><button [class.on]="detailTab === 'metadata'" (click)="detailTab = 'metadata'">{{ 'tabs.metadata' | translate }}</button></div>
+
+            <div class="tab-content" *ngIf="detailTab === 'overview'">
+              <div class="overview-grid">
+                <div class="info-card" *ngIf="selected.sessionId"><span>{{ 'overview.session' | translate }}</span><strong>{{ selected.sessionId }}</strong><small>{{ contextLabel }}</small></div>
+                <div class="info-card" *ngIf="selected.agent"><span>{{ 'overview.agent' | translate }}</span><strong>{{ selected.agent }}</strong><small>{{ 'overview.agentHint' | translate }}</small></div>
+                <div class="info-card"><span>{{ 'overview.context' | translate }}</span><strong>{{ 'overview.messages' | translate:{n: conversation.length} }}</strong><small>{{ 'overview.toolsExecuted' | translate:{n: usedTools.length} }}</small></div>
+                <div class="info-card"><span>{{ 'overview.toolsAvailable' | translate }}</span><strong>{{ toolsDeclaredCount }}</strong><small>{{ 'overview.declaredExecuted' | translate:{n: usedTools.length} }}</small></div>
+              </div>
+              <div class="section-title">{{ 'overview.sectionExec' | translate }}</div>
+              <div class="kv-grid"><div><span>{{ 'overview.provider' | translate }}</span><b>{{ provider }}</b></div><div><span>{{ 'overview.modelAnswered' | translate }}</span><b>{{ responseModel }}</b></div><div><span>{{ 'overview.operation' | translate }}</span><b>{{ operation }}</b></div><div><span>{{ 'overview.streaming' | translate }}</span><b>{{ streaming }}</b></div><div><span>{{ 'overview.service' | translate }}</span><b>{{ serviceName }}</b></div><div><span>{{ 'overview.environment' | translate }}</span><b>{{ environment }}</b></div><div><span>{{ 'overview.sdk' | translate }}</span><b>{{ sdk }}</b></div><div><span>{{ 'overview.duration' | translate }}</span><b>{{ formatInteger(selected.durationMs || 0) }} ms</b></div></div>
+              <div class="id-strip"><div><span>{{ 'overview.traceId' | translate }}</span><code>{{ selected.traceId }}</code></div><div><span>{{ 'overview.spanId' | translate }}</span><code>{{ selected.id }}</code></div></div>
+            </div>
+
+
+            <div class="tab-content" *ngIf="detailTab === 'flow'">
+              <div class="flow-intro"><div><strong>{{ 'flow.introTitle' | translate }}</strong><p>{{ 'flow.introText' | translate }}</p></div><span>{{ 'flow.steps' | translate:{n: flowNodes.length} }}</span></div>
+              <div class="flow-view-switch" *ngIf="flowNodes.length">
+                <button [class.on]="flowView === 'list'" (click)="setFlowView('list')">{{ 'flow.list' | translate }}</button>
+                <button [class.on]="flowView === 'graph'" (click)="setFlowView('graph')">{{ 'flow.graph' | translate }}</button>
+              </div>
+              <div class="flow-toolbar" *ngIf="flowNodes.length">
+                <label class="filter-label">{{ 'flow.type' | translate }} <select [(ngModel)]="flowFilter"><option value="all">{{ 'flow.all' | translate:{n: flowNodes.length} }}</option><option value="system">{{ 'flow.orchestrator' | translate:{n: flowStats['system'] || 0} }}</option><option value="agent">{{ 'flow.agent' | translate:{n: flowStats['agent'] || 0} }}</option><option value="subagent">{{ 'flow.subagent' | translate:{n: flowStats['subagent'] || 0} }}</option><option value="skill">{{ 'flow.skill' | translate:{n: flowStats['skill'] || 0} }}</option><option value="rule">{{ 'flow.rule' | translate:{n: flowStats['rule'] || 0} }}</option><option value="file">{{ 'flow.context' | translate:{n: flowStats['file'] || 0} }}</option><option value="tool">{{ 'flow.tool' | translate:{n: flowStats['tool'] || 0} }}</option><option value="mcp">{{ 'flow.mcp' | translate:{n: flowStats['mcp'] || 0} }}</option><option value="response">{{ 'flow.response' | translate:{n: flowStats['response'] || 0} }}</option></select></label>
+                <div class="toolbar-spacer"></div>
+                <button class="ghost mini-btn" (click)="expandAllFlow()">{{ 'flow.expandAll' | translate }}</button><button class="ghost mini-btn" (click)="collapseAllFlow()">{{ 'flow.collapse' | translate }}</button>
+              </div>
+              <div class="flow-legend" *ngIf="flowNodes.length"><span><i class="legend-dot in"></i> {{ 'flow.legendL0' | translate }}</span><span><i class="legend-dot out"></i> {{ 'flow.legendL1' | translate }}</span><span><i class="legend-dot cache"></i> {{ 'flow.legendL3' | translate }}</span><span class="flow-hint-inline">{{ 'flow.hintClick' | translate }}</span></div>
+              <div class="flow-canvas flow-tree" *ngIf="flowView === 'list' && filteredFlowNodes.length">
+                <div class="flow-node" *ngFor="let node of filteredFlowNodes; let i = index" [attr.data-level]="node.level" [class.is-expanded]="isFlowExpanded(node.id)">
+                  <div class="flow-rail" aria-hidden="true"><span class="rail-step">{{ i + 1 }}</span><span class="rail-line"></span><span class="rail-depth" [style.width.px]="8 + node.level * 18"></span></div>
+                  <div class="flow-node-body" [style.marginLeft.px]="node.level * 14">
+                    <button class="flow-node-card" [class.flow-error]="node.status === 'error'" (click)="toggleFlowNode(node.id)" [attr.aria-expanded]="isFlowExpanded(node.id)" [title]="node.detail || node.title">
+                      <span class="flow-node-text"><span class="flow-type-row"><span class="flow-type">{{ flowDisplayType(node) }}</span><span class="flow-depth">{{ flowDepthLabel(node.level) }}</span></span><strong>{{ flowDisplayTitle(node) }}</strong><small class="flow-meta-desc" *ngIf="node.metaDescription">{{ node.metaDescription }}</small><small *ngIf="node.fileName && node.metaName" class="flow-file-hint">{{ node.fileName }}</small><small *ngIf="node.detail">{{ flowDisplayDetail(node) }}</small></span>
+                      <span class="flow-node-meta">
+                        <span class="token-badge" [title]="'flow.tokensEst' | translate:{n: formatInteger(node.tokens)}">
+                          <span *ngIf="node.type === 'response'" class="out-icon">{{ 'flow.tokensOut' | translate }}</span>
+                          {{ 'flow.tokensShort' | translate:{n: formatInteger(node.tokens)} }}
+                        </span>
+                        <b class="flow-state">{{ node.status === 'error' ? ('flow.statusFail' | translate) : node.status === 'ok' ? ('flow.statusOk' | translate) : ('flow.statusInfo' | translate) }}</b>
+                        <span class="flow-chevron">{{ isFlowExpanded(node.id) ? '▴' : '▾' }}</span>
+                      </span>
+                    </button>
+                    <div class="flow-detail" *ngIf="isFlowExpanded(node.id)">
+                      <div class="flow-detail-grid">
+                        <div *ngIf="node.argsPretty"><span>{{ 'flow.argsContent' | translate }}</span><pre>{{ node.argsPretty }}</pre></div>
+                        <div *ngIf="node.resultPreview"><span>{{ 'flow.resultExcerpt' | translate }}</span><pre>{{ node.resultPreview }}</pre></div>
+                        <div class="flow-detail-meta"><span>{{ 'flow.stepMeta' | translate:{n: node.stepIndex + 1, type: flowDisplayType(node), depth: flowDepthLabel(node.level)} }}</span><span>{{ 'flow.tokensEst' | translate:{n: formatInteger(node.tokens)} }}</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="graph-wrap" *ngIf="flowView === 'graph' && filteredFlowNodes.length" [class.fullscreen]="graphFullscreen">
+                <div class="graph-controls">
+                  <button class="ghost mini-btn" (click)="flowZoomOut()" [disabled]="flowZoom <= 0.3">−</button>
+                  <span class="graph-zoom-label">{{ formatInteger(flowZoom * 100) }}%</span>
+                  <button class="ghost mini-btn" (click)="flowZoomIn()" [disabled]="flowZoom >= 2.5">+</button>
+                  <button class="ghost mini-btn" (click)="resetGraphView()">{{ 'flow.reset' | translate }}</button>
+                  <button class="ghost mini-btn" (click)="clearGraphLayout()" [title]="'flow.layoutAuto' | translate">{{ 'flow.layoutAuto' | translate }}</button>
+                  <button class="ghost mini-btn" (click)="toggleGraphFullscreen()">{{ (graphFullscreen ? 'flow.closeFullscreen' : 'flow.expand') | translate }}</button>
+                  <button class="ghost mini-btn" (click)="downloadGraphImage()" [title]="'flow.downloadPng' | translate">{{ 'flow.downloadPng' | translate }}</button>
+                  <span class="graph-hint">{{ 'flow.graphHint' | translate }}</span>
+                </div>
+                <div class="graph-lanes">
+                  <span *ngFor="let lane of graphLevels">{{ flowDepthLabel(lane) }}</span>
+                </div>
+                <div class="graph-viewport"
+                  (mousedown)="onGraphPanStart($event)"
+                  (mousemove)="onGraphPanMove($event)"
+                  (mouseup)="onGraphPanEnd()"
+                  (mouseleave)="onGraphPanEnd()"
+                  (wheel)="onGraphWheel($event)">
+                  <div class="graph-canvas" [style.transform]="graphTransform()" [style.width.px]="graphWidth" [style.height.px]="graphHeight">
+                    <svg class="graph-edges" [attr.width]="graphWidth" [attr.height]="graphHeight">
+                      <defs>
+                        <marker id="graph-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                          <path d="M 0 0 L 10 5 L 0 10 z" fill="#8f79ef"></path>
+                        </marker>
+                      </defs>
+                      <path *ngFor="let edge of graphEdges; trackBy: trackGraphEdge" [attr.d]="edge.d" [class.is-back]="edge.isBack" marker-end="url(#graph-arrow)"></path>
+                    </svg>
+                    <div class="graph-node" *ngFor="let g of graphNodes; trackBy: trackGraphNode" [style.left.px]="g.x" [style.top.px]="g.y" [attr.data-level]="g.node.level" [class.is-expanded]="isFlowExpanded(g.node.id)" [class.dragging]="draggingNodeId === g.node.id" (mousedown)="onGraphNodeDragStart($event, g.node.id, g.index, g.node.level)" [title]="g.node.detail || g.node.title">
+                      <span class="graph-step">{{ g.index + 1 }}</span>
+                      <button class="graph-node-card" [class.flow-error]="g.node.status === 'error'" (click)="toggleFlowNodeGuarded(g.node.id)" [attr.aria-expanded]="isFlowExpanded(g.node.id)" [title]="g.node.detail || g.node.title">
+                        <span class="flow-node-text"><span class="flow-type-row"><span class="flow-type">{{ flowDisplayType(g.node) }}</span></span><strong>{{ flowDisplayTitle(g.node) }}</strong><small *ngIf="g.node.metaDescription">{{ g.node.metaDescription }}</small><small *ngIf="g.node.detail">{{ flowDisplayDetail(g.node) }}</small></span>
+                        <span class="graph-node-side"><span class="token-badge">{{ 'flow.tokensShort' | translate:{n: formatInteger(g.node.tokens)} }}</span><b class="flow-state">{{ g.node.status === 'error' ? ('flow.statusFail' | translate) : ('flow.statusOk' | translate) }}</b></span>
+                        <span class="graph-expand-icon" [title]="isFlowExpanded(g.node.id) ? ('flow.collapse' | translate) : ('flow.expandAll' | translate)" (mousedown)="$event.stopPropagation()" (click)="toggleFlowNode(g.node.id); $event.stopPropagation()">{{ isFlowExpanded(g.node.id) ? '▴' : '▾' }}</span>
+                      </button>
+                      <div class="graph-node-detail" *ngIf="isFlowExpanded(g.node.id)" (mousedown)="$event.stopPropagation()">
+                        <div class="graph-detail-head"><span>{{ 'flow.stepMeta' | translate:{n: g.index + 1, type: flowDisplayType(g.node), depth: flowDepthLabel(g.node.level)} }}</span><button class="ghost mini-btn icon-btn" (click)="toggleFlowNode(g.node.id)" [title]="'flow.collapse' | translate">✕</button></div>
+                        <div *ngIf="g.node.argsPretty"><span>{{ 'flow.argsContent' | translate }}</span><pre>{{ g.node.argsPretty }}</pre></div>
+                        <div *ngIf="g.node.resultPreview"><span>{{ 'flow.resultExcerpt' | translate }}</span><pre>{{ g.node.resultPreview }}</pre></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="empty-list" *ngIf="!filteredFlowNodes.length">{{ 'flow.empty' | translate }}</div>
+              <div class="notice">{{ 'flow.notice' | translate }}</div>
+            </div>
+
+            <div class="tab-content" *ngIf="detailTab === 'conversation'">
+              <div class="view-switch"><button [class.on]="dataView === 'friendly'" (click)="dataView = 'friendly'">{{ 'conversation.friendly' | translate }}</button><button [class.on]="dataView === 'json'" (click)="dataView = 'json'">{{ 'conversation.json' | translate }}</button></div>
+              <div class="notice" *ngIf="dataView === 'friendly' && selected.cacheReadTokens && conversation.length">{{ 'conversation.cacheHeuristic' | translate:{n: formatInteger(selected.cacheReadTokens), c: cachedPrefixCount} }}</div>
+              <div *ngIf="dataView === 'friendly'" class="timeline">
+                <div class="timeline-item" *ngFor="let message of conversation; let i = index" [class.tool-result]="message.role === 'tool'">
+                  <div class="timeline-dot" [attr.data-role]="message.role">{{ roleIcon(message.role) }}</div>
+                  <div class="timeline-body"><div class="timeline-head">{{ roleLabel(message.role) }}<span *ngIf="selected.cacheReadTokens && cachePrefixMarks[i]?.state === 'cached'" class="cache-est">{{ 'conversation.cachedEst' | translate }}</span><span *ngIf="selected.cacheReadTokens && cachePrefixMarks[i]?.state === 'partial'" class="cache-est partial">{{ 'conversation.partialEst' | translate }}</span><span *ngIf="selected.cacheReadTokens && cachePrefixMarks[i]?.state === 'fresh'" class="fresh-est">{{ 'conversation.freshEst' | translate }}</span></div><pre class="message-content" *ngIf="message.content">{{ message.content }}</pre>
+                    <div class="tool-call" *ngFor="let tool of message.toolCalls"><div class="tool-head"><span class="tool-badge" [class.mcp]="tool.category === 'mcp'">{{ tool.category === 'mcp' ? 'MCP' : 'TOOL' }}</span><strong>{{ tool.name }}</strong><small *ngIf="tool.provider">{{ tool.provider }}</small></div><pre *ngIf="tool.arguments != null">{{ prettyJson(tool.arguments) }}</pre><div class="tool-result-box" *ngIf="tool.result"><span>{{ 'conversation.result' | translate }}</span><pre>{{ tool.result }}</pre></div></div>
+                  </div>
+                </div>
+                <div class="empty-list" *ngIf="!conversation.length">{{ 'conversation.empty' | translate }}</div>
+              </div>
+              <pre class="json-view" *ngIf="dataView === 'json'">{{ prettyJson(selected.requestBody) }}</pre>
+              <div class="response-box"><div class="section-title">{{ 'conversation.finalResponse' | translate }}</div><div class="view-switch mini"><button [class.on]="dataView === 'friendly'" (click)="dataView = 'friendly'">{{ 'conversation.friendly' | translate }}</button><button [class.on]="dataView === 'json'" (click)="dataView = 'json'">{{ 'conversation.json' | translate }}</button></div><pre>{{ dataView === 'json' ? prettyJson(selected.responseBody) : prettyJson(selected.responseBody) }}</pre></div>
+            </div>
+
+            <div class="tab-content" *ngIf="detailTab === 'tools'">
+              <div class="tool-summary"><div><strong>{{ usedTools.length }}</strong><span>{{ 'toolsTab.capturedExec' | translate }}</span></div><div><strong>{{ toolsDeclaredCount }}</strong><span>{{ 'toolsTab.declaredTools' | translate }}</span></div><div><strong>{{ (usedTools | slice:0:999).length }}</strong><span>{{ 'toolsTab.historyActions' | translate }}</span></div></div>
+              <div class="section-title">{{ 'toolsTab.usedTitle' | translate }}</div>
+              <div class="tool-list" *ngIf="usedTools.length"><div class="tool-row" *ngFor="let tool of usedTools"><span class="tool-square" [class.mcp]="tool.category === 'mcp'">{{ toolIcon(tool) }}</span><div><strong>{{ tool.name }}</strong><small>{{ tool.category === 'mcp' ? (tool.provider || 'MCP') : ('toolsTab.tool' | translate) }}</small></div><span class="success-label" *ngIf="tool.result">{{ 'toolsTab.capturedResult' | translate }}</span></div></div>
+              <div class="empty-list" *ngIf="!usedTools.length">{{ 'toolsTab.empty' | translate }}</div>
+              <details class="declared-tools"><summary>{{ 'toolsTab.viewDeclared' | translate:{n: declaredTools.length} }}</summary><div class="declared-grid"><div *ngFor="let tool of declaredTools"><strong>{{ tool.name }}</strong><small>{{ tool.description || ('toolsTab.noDesc' | translate) }}</small></div></div></details>
+            </div>
+
+            <div class="tab-content" *ngIf="detailTab === 'cache'">
+              <div class="cache-hero"><div class="cache-ring"><strong>{{ formatDecimal1(selectedCacheRate) }}%</strong><span>{{ 'cacheTab.hit' | translate }}</span></div><div><h3>{{ 'cacheTab.title' | translate }}</h3><p>{{ 'cacheTab.desc' | translate }}</p></div></div>
+              <div class="cache-grid"><div><span>{{ 'cacheTab.totalIn' | translate }}</span><strong>{{ formatInteger(selected.inputTokens) }}</strong></div><div><span>{{ 'cacheTab.read' | translate }}</span><strong>{{ formatInteger(selected.cacheReadTokens) }}</strong></div><div><span>{{ 'cacheTab.nonCached' | translate }}</span><strong>{{ formatInteger(selectedRealInput) }}</strong><button class="ghost mini-btn" style="margin-top:8px" (click)="toggleRealPrompt()">{{ (showRealPrompt ? 'cacheTab.hideReal' : 'cacheTab.showReal') | translate }}</button></div><div><span>{{ 'cacheTab.written' | translate }}</span><strong>{{ formatInteger(selected.cacheWriteTokens) }}</strong></div></div>
+              <div class="cache-bar"><div class="cache-hit" [style.width.%]="selectedCacheRate"></div></div><div class="cache-legend"><span><i class="cached"></i> {{ 'cacheTab.reused' | translate:{n: formatNumber(selected.cacheReadTokens)} }}</span><span><i class="fresh"></i> {{ 'cacheTab.new' | translate:{n: formatNumber(selectedRealInput)} }}</span></div>
+              <div class="notice">{{ 'cacheTab.notice' | translate }}</div>
+            </div>
+
+            <div class="tab-content" *ngIf="detailTab === 'metadata'">
+              <div class="view-switch"><button [class.on]="dataView === 'friendly'" (click)="dataView = 'friendly'">{{ 'conversation.summary' | translate }}</button><button [class.on]="dataView === 'json'" (click)="dataView = 'json'">{{ 'conversation.rawJson' | translate }}</button></div>
+              <div *ngIf="dataView === 'friendly'" class="metadata-summary"><div><span>{{ 'overview.provider' | translate }}</span><strong>{{ provider }}</strong></div><div><span>{{ 'overview.modelAnswered' | translate }}</span><strong>{{ responseModel }}</strong></div><div><span>{{ 'overview.operation' | translate }}</span><strong>{{ operation }}</strong></div><div><span>{{ 'overview.streaming' | translate }}</span><strong>{{ streaming }}</strong></div><div><span>{{ 'toolsTab.declaredTools' | translate }}</span><strong>{{ toolsDeclaredCount }}</strong></div><div><span>{{ 'overview.service' | translate }}</span><strong>{{ serviceName }}</strong></div><div><span>{{ 'overview.environment' | translate }}</span><strong>{{ environment }}</strong></div><div><span>{{ 'overview.sdk' | translate }}</span><strong>{{ sdk }}</strong></div></div>
+              <pre class="json-view" *ngIf="dataView === 'json'">{{ prettyJson(selected.metadata) }}</pre>
+            </div>
+          </ng-container>
+          <ng-template #noSelection><div class="detail-empty"><div>⌁</div><strong>{{ 'detail.selectTitle' | translate }}</strong><p>{{ 'detail.selectText' | translate }}</p></div></ng-template>
+        </div>
+      </section>
+      <footer>ACHERNAR OBSERVER <span>·</span> {{ 'footer.suffix' | translate }}</footer>
+    </div>
+  </main>
+</div>

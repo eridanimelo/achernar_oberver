@@ -1,0 +1,26 @@
+# Workflow de desenvolvimento/debug. NÃO é carregado automaticamente:
+# passe com -f somente quando for desenvolver.
+#
+# 1) Backend DENTRO do docker com debug remoto (porta 5005 para o IDE):
+#      docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#    Anexe o debugger em localhost:5005 (suspend=n, a app sobe normalmente).
+#
+# 2) Backend e/ou frontend FORA do docker (hot-reload), só infra no compose:
+#      docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres otel-collector
+#      OTEL_EXPORTER_ENDPOINT=http://host.docker.internal:8080/otel \
+#        docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d otel-collector --no-deps
+#    e depois, em terminais separados:
+#      cd backend && mvn spring-boot:run        # usa localhost:5432 (default do application.yml)
+#      cd frontend && npm start                 # ng serve + proxy para localhost:8080
+#
+# Em ambos os casos, VOLTE ao modo normal com `docker compose up -d --build`
+# para validar o que qualquer pessoa vai baixar e rodar.
+
+services:
+  backend:
+    restart: "no"
+    ports:
+      - "${DEBUG_PORT:-5005}:5005"
+    environment:
+      # suspend=n: a JVM sobe mesmo sem debugger anexado
+      JAVA_OPTS: ${JAVA_OPTS:--agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005}

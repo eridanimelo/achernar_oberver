@@ -1,0 +1,88 @@
+# Caminho feliz: qualquer pessoa roda `docker compose up -d --build`
+# e abre http://localhost:18180 (frontend) e http://localhost:4318 (OTLP).
+#
+# Todas as portas, senhas e nomes de imagem têm default sensato e podem
+# ser sobrescritas no `.env` (copie de `.env.example`). O `.env` da raiz
+# é lido automaticamente pelo compose para interpolar as variáveis abaixo,
+# então nenhum `env_file` é necessário.
+#
+# Debug local: veja `docker-compose.dev.yml`.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-achernar_observer}
+      POSTGRES_USER: ${POSTGRES_USER:-achernar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-achernar}
+    ports:
+      # 5433 de propósito: a 5432 quase sempre já está ocupada por outro postgres.
+      # Quem quiser o padrão, define POSTGRES_PORT=5432 no .env
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - observer_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-achernar} -d ${POSTGRES_DB:-achernar_observer}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    # `image` + `build` juntos: se a imagem publicada existir, o compose
+    # pode puxá-la (veja README "Publicar imagens"); senão, builda local.
+    image: ${BACKEND_IMAGE:-achernar-observer-backend:latest}
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      # Dentro do compose o host do banco é `postgres` (não localhost).
+      # Rodando o backend fora do docker, vale o default do application.yml
+      # (jdbc:postgresql://localhost:5432/achernar_observer).
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-achernar_observer}
+      DATABASE_USERNAME: ${POSTGRES_USER:-achernar}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-achernar}
+      OBSERVER_DEFAULT_PROJECT: ${OBSERVER_DEFAULT_PROJECT:-UNKNOWN}
+      OBSERVER_CAPTURE_PAYLOADS: ${OBSERVER_CAPTURE_PAYLOADS:-true}
+      OBSERVER_CAPTURE_HEADERS: ${OBSERVER_CAPTURE_HEADERS:-true}
+      OBSERVER_REDACT_SECRETS: ${OBSERVER_REDACT_SECRETS:-true}
+      OBSERVER_UPSTREAM: ${OBSERVER_UPSTREAM:-http://localhost:4000}
+      JAVA_OPTS: ${JAVA_OPTS:-}
+    ports:
+      - "${BACKEND_PORT:-18080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.136.0
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    environment:
+      # Dentro do compose o backend é http://backend:8080/otel.
+      # Backend fora do docker (debug): OTEL_EXPORTER_ENDPOINT=http://host.docker.internal:8080/otel
+      OTEL_EXPORTER_ENDPOINT: ${OTEL_EXPORTER_ENDPOINT:-http://backend:8080/otel}
+    volumes:
+      - ./otel/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "${OTLP_PORT:-4318}:4318"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-achernar-observer-frontend:latest}
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-18180}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:80/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  observer_postgres:
