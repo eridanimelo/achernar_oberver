@@ -1,3 +1,11 @@
+<p align="center">
+  <a href="MANUAL.md">🇺🇸 English</a> |
+  <a href="MANUAL.pt-BR.md">🇧🇷 Português</a> |
+  <a href="MANUAL.es.md">🇪🇸 Español</a> |
+  <a href="MANUAL.fr.md">🇫🇷 Français</a> |
+  <a href="MANUAL.it.md">🇮🇹 Italiano</a>
+</p>
+
 # MANUAL — ACHERNAR Observer
 
 Guia passo a passo para instalar e usar o ACHERNAR Observer do zero,

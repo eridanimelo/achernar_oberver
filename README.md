@@ -1,64 +1,72 @@
+<p align="center">
+  <a href="README.md">🇺🇸 English</a> |
+  <a href="README.pt-BR.md">🇧🇷 Português</a> |
+  <a href="README.es.md">🇪🇸 Español</a> |
+  <a href="README.fr.md">🇫🇷 Français</a> |
+  <a href="README.it.md">🇮🇹 Italiano</a>
+</p>
+
 # ACHERNAR Observer
 
-Observabilidade local para chamadas LLM — modelo, tokens, custo estimado, latência, prompt e resposta — via LiteLLM + OpenTelemetry.
+Local observability for LLM-powered applications — model, tokens, estimated cost, latency, prompt and response — via LiteLLM + OpenTelemetry.
 
-> Instalando do zero? Siga o **[MANUAL.md](MANUAL.md)** (Observer + LiteLLM + OpenCode, passo a passo para iniciantes).
+> Starting from scratch? Follow **[MANUAL.md](docs/MANUAL.md)** (Observer + LiteLLM + OpenCode, step-by-step guide for beginners).
 
-## Índice
+## Table of Contents
 
-- [Por que usar](#por-que-usar)
-- [Como funciona](#como-funciona)
-- [Pré-requisitos](#pré-requisitos)
-- [Início rápido](#início-rápido)
-- [Configuração](#configuração)
-- [Conectando o LiteLLM](#conectando-o-litellm)
-- [Desenvolvimento](#desenvolvimento)
-- [Solução de problemas](#solução-de-problemas)
-- [Privacidade e segurança](#privacidade-e-segurança)
-- [Estrutura do repositório](#estrutura-do-repositório)
+- [Why Use It](#why-use-it)
+- [How It Works](#how-it-works)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [Connecting LiteLLM](#connecting-litellm)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
+- [Privacy and Security](#privacy-and-security)
+- [Repository Structure](#repository-structure)
 - [Roadmap](#roadmap)
 
-## Por que usar
+## Why Use It
 
-- **Veja cada chamada LLM** feita pelos seus agentes de código, em um painel local.
-- **Entenda custo e performance**: tokens (incl. cache), duração e modelo por chamada.
-- **Inspecione request/response** formatados para depurar prompts.
-- **Tempo real**: atualizações via Server-Sent Events (SSE), sem refresh manual.
-- **Não intrusivo**: o Observer só observa. Se cair, o fluxo OpenCode → LiteLLM → LLM continua funcionando.
+- **See every LLM call** made by your coding agents, in a local dashboard.
+- **Understand cost and performance**: tokens (incl. cache), duration and model per call.
+- **Inspect formatted request/response** to debug prompts.
+- **Real time**: updates via Server-Sent Events (SSE), no manual refresh.
+- **Non-intrusive**: the Observer only observes. If it goes down, the OpenCode → LiteLLM → LLM flow keeps working.
 
-## Como funciona
+## How It Works
 
 ```text
-OpenCode  --->  LiteLLM (:4000)  --->  LLM (nuvem)
-                         |
-                         +--> OTLP/HTTP (:4318)  --->  Observer  --->  Painel (:18180)
+OpenCode  --->  LiteLLM (:4000)  --->  LLM (cloud)
+                          |
+                          +--> OTLP/HTTP (:4318)  --->  Observer  --->  Dashboard (:18180)
 ```
 
-| Componente | Tecnologia |
+| Component | Technology |
 |---|---|
-| Backend | Java + Spring Boot (ingestão OTLP `/otel/v1/*`, API `/api/*`, SSE `/api/stream`) |
-| Frontend | Angular + Nginx (dashboard em `http://localhost:18180`) |
-| Telemetria | OpenTelemetry Collector (OTLP/HTTP em `:4318`) |
-| Banco | PostgreSQL 17 + JSONB (spans e eventos completos preservados) |
+| Backend | Java + Spring Boot (OTLP ingestion `/otel/v1/*`, API `/api/*`, SSE `/api/stream`) |
+| Frontend | Angular + Nginx (dashboard at `http://localhost:18180`) |
+| Telemetry | OpenTelemetry Collector (OTLP/HTTP on `:4318`) |
+| Database | PostgreSQL 17 + JSONB (complete spans and events preserved) |
 
-Detalhes de ingestão (normalização GenAI, precedência de projeto, separação de spans LLM vs. HTTP/auth) estão documentados no código do backend.
+Ingestion details (GenAI normalization, project precedence, LLM vs. HTTP/auth span separation) are documented in the backend code.
 
-## Pré-requisitos
+## Prerequisites
 
 - [Docker + Docker Compose](https://www.docker.com/products/docker-desktop/) (`docker compose version`)
 - [Git](https://git-scm.com/) (`git --version`)
-- Chave de ao menos um provedor LLM (ex.: DeepSeek, Gemini) — fica **só** no LiteLLM, nunca no Observer.
+- API key for at least one LLM provider (e.g., DeepSeek, Gemini) — it stays **only** in LiteLLM, never in the Observer.
 
-Portas padrão no host (ajustáveis via `.env`):
+Default host ports (adjustable via `.env`):
 
-| Porta | Serviço |
+| Port | Service |
 |---|---|
-| 18180 | Painel web |
-| 18080 | API do Observer |
-| 4318 | Entrada OTLP (telemetria) |
-| 5433 | PostgreSQL (5432 evitada de propósito — quase sempre ocupada) |
+| 18180 | Web dashboard |
+| 18080 | Observer API |
+| 4318 | OTLP input (telemetry) |
+| 5433 | PostgreSQL (5432 deliberately avoided — almost always taken) |
 
-## Início rápido
+## Quick Start
 
 ```bash
 cp .env.example .env
@@ -66,48 +74,48 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Abra **http://localhost:18180**. Vai estar vazio — é normal, ainda não há telemetria.
+Open **http://localhost:18180**. It will be empty — that's normal, there is no telemetry yet.
 
-Teste de ponta a ponta (com LiteLLM já configurado):
+End-to-end test (with LiteLLM already configured):
 
-1. No seu cliente (ex.: OpenCode), escolha um modelo do LiteLLM e envie `bom dia`.
-2. A chamada aparece no dashboard com modelo, tokens, duração e abas de request/response.
+1. In your client (e.g., OpenCode), pick a LiteLLM model and send `hello`.
+2. The call shows up in the dashboard with model, tokens, duration and request/response tabs.
 
-Para acompanhar a ingestão:
+To follow ingestion:
 
 ```bash
 docker compose logs -f otel-collector backend
 ```
 
-Comandos do dia a dia:
+Everyday commands:
 
-| Ação | Comando |
+| Action | Command |
 |---|---|
-| Parar (mantém dados) | `docker compose down` |
-| Subir de novo | `docker compose up -d` |
-| Apagar tudo, incluindo banco | `docker compose down -v && docker compose up -d --build` |
-| Limpar só os traces | Botão **Limpar dados** no dashboard |
+| Stop (keeps data) | `docker compose down` |
+| Start again | `docker compose up -d` |
+| Wipe everything, including the database | `docker compose down -v && docker compose up -d --build` |
+| Clear only traces | **Clear data** button in the dashboard |
 
-## Configuração
+## Configuration
 
-Todas as opções vivem no `.env` (copiado do `.env.example`) e têm defaults sensatos no compose — o `.env` só é obrigatório se você fugir do padrão.
+All options live in `.env` (copied from `.env.example`) and have sensible defaults in the compose file — `.env` is only required if you deviate from the defaults.
 
-| Variável | Default | Descrição |
+| Variable | Default | Description |
 |---|---|---|
-| `FRONTEND_PORT` | `18180` | Porta do painel no host |
-| `BACKEND_PORT` | `18080` | Porta da API no host |
-| `OTLP_PORT` | `4318` | Porta OTLP/HTTP no host |
-| `POSTGRES_PORT` | `5433` | Porta do banco no host |
-| `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `achernar_observer` / `achernar` / `achernar` | Credenciais do banco local |
-| `OBSERVER_DEFAULT_PROJECT` | `UNKNOWN` | Fallback de projeto para instância de projeto único. **Não use** em instância compartilhada |
-| `OBSERVER_CAPTURE_PAYLOADS` | `true` | Persiste request/response dos spans |
-| `OBSERVER_CAPTURE_HEADERS` | `true` | Persiste headers quando o OTEL os fornece |
-| `OBSERVER_REDACT_SECRETS` | `true` | Redige segredos antes de persistir |
-| `BACKEND_IMAGE` / `FRONTEND_IMAGE` | `achernar-observer-backend:latest` / `achernar-observer-frontend:latest` | Aponte para `ghcr.io/<user>/...` para puxar imagens publicadas em vez de buildar |
+| `FRONTEND_PORT` | `18180` | Dashboard port on the host |
+| `BACKEND_PORT` | `18080` | API port on the host |
+| `OTLP_PORT` | `4318` | OTLP/HTTP port on the host |
+| `POSTGRES_PORT` | `5433` | Database port on the host |
+| `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `achernar_observer` / `achernar` / `achernar` | Local database credentials |
+| `OBSERVER_DEFAULT_PROJECT` | `UNKNOWN` | Project fallback for a single-project instance. **Do not use** on a shared instance |
+| `OBSERVER_CAPTURE_PAYLOADS` | `true` | Persists span request/response |
+| `OBSERVER_CAPTURE_HEADERS` | `true` | Persists headers when OTEL provides them |
+| `OBSERVER_REDACT_SECRETS` | `true` | Redacts secrets before persisting |
+| `BACKEND_IMAGE` / `FRONTEND_IMAGE` | `achernar-observer-backend:latest` / `achernar-observer-frontend:latest` | Point to `ghcr.io/<user>/...` to pull published images instead of building |
 
-Após editar o `.env`, recrie: `docker compose up -d`.
+After editing `.env`, recreate: `docker compose up -d`.
 
-### Publicar imagens
+### Publishing Images
 
 ```bash
 docker compose build
@@ -117,80 +125,89 @@ docker push ghcr.io/<user>/observer-backend:<versao>
 docker push ghcr.io/<user>/observer-frontend:<versao>
 ```
 
-Quem for rodar sem buildar, define no `.env`:
+To run without building, set in `.env`:
 
 ```env
 BACKEND_IMAGE=ghcr.io/<user>/observer-backend:<versao>
 FRONTEND_IMAGE=ghcr.io/<user>/observer-frontend:<versao>
 ```
 
-e sobe com `docker compose up -d` (sem `--build`).
+and start with `docker compose up -d` (without `--build`).
 
-## Conectando o LiteLLM
+## Connecting LiteLLM
 
-Resumo — o passo a passo completo (com `config.yaml`, `.env` e `docker-compose.yml` prontos para copiar) está no **[MANUAL.md](MANUAL.md)**:
+Summary — the full step-by-step (with ready-to-copy `config.yaml`, `.env` and `docker-compose.yml`) is in **[MANUAL.md](docs/MANUAL.md)**:
 
-1. No `config.yaml` do LiteLLM, ative o callback OTEL:
+1. In the LiteLLM `config.yaml`, enable the OTEL callback:
    ```yaml
    litellm_settings:
      callbacks:
        - otel
    ```
-2. No `.env` do LiteLLM, aponte para o Observer:
+2. In the LiteLLM `.env`, point to the Observer:
    ```env
    OTEL_EXPORTER=otlp_http
    OTEL_ENDPOINT=http://host.docker.internal:4318
    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=SPAN_AND_EVENT
    ```
-   (Se o LiteLLM rodar fora do Docker, use `http://localhost:4318`.)
-3. Reinicie o LiteLLM e aponte seu cliente para `http://localhost:4000/v1`.
+   (If LiteLLM runs outside Docker, use `http://localhost:4318`.)
+3. Restart LiteLLM and point your client to `http://localhost:4000/v1`.
 
-## Desenvolvimento
+## Development
 
-Pré-requisito: caminho feliz (`docker compose up -d --build`) validado antes de publicar.
+Prerequisite: happy path (`docker compose up -d --build`) validated before publishing.
 
 ```bash
-# Tudo no compose + debug remoto Java (anexe o IDE em localhost:5005)
+# Everything in compose + Java remote debug (attach the IDE at localhost:5005)
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
-# Ou: só infra no compose + app fora (hot-reload)
+# Or: only infra in compose + app outside (hot-reload)
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres otel-collector
 cd backend && mvn spring-boot:run
 cd frontend && npm start
 ```
 
-## Solução de problemas
+## Troubleshooting
 
-| Sintoma | Causa provável |
+| Symptom | Likely cause |
 |---|---|
-| Painel vazio após usar o agente | Falta `- otel` nos callbacks, `OTEL_ENDPOINT` errado ou `extra_hosts` ausente no Linux |
-| `host.docker.internal` não resolve | LiteLLM fora do Docker → use `http://localhost:4318` |
-| Porta já em uso | Ajuste a variável correspondente no `.env` e recrie |
-| Mudou `config.yaml` e nada aconteceu | LiteLLM só lê o yaml ao iniciar — `docker compose down && docker compose up -d` na pasta dele |
+| Empty dashboard after using the agent | Missing `- otel` in callbacks, wrong `OTEL_ENDPOINT`, or missing `extra_hosts` on Linux |
+| `host.docker.internal` does not resolve | LiteLLM outside Docker → use `http://localhost:4318` |
+| Port already in use | Adjust the corresponding variable in `.env` and recreate |
+| Changed `config.yaml` and nothing happened | LiteLLM only reads the yaml at startup — `docker compose down && docker compose up -d` in its folder |
 
-Guia completo com logs e verificação: **[MANUAL.md §8](MANUAL.md)**.
+Full guide with logs and verification: **[MANUAL.md §8](docs/MANUAL.md#8-common-issues)**.
 
-## Privacidade e segurança
+## Privacy and Security
 
-- Com `SPAN_AND_EVENT`, **prompts e respostas são gravados no banco local** — podem incluir código-fonte e dados sensíveis. Use em ambiente local e confiável.
-- Não exponha as portas na rede sem necessidade; o padrão é uso em `localhost`.
-- Chaves de API ficam **só** no `.env` do LiteLLM. Nunca commite esse arquivo.
+- With `SPAN_AND_EVENT`, **prompts and responses are stored in the local database** — they may include source code and sensitive data. Use in a local, trusted environment.
+- Do not expose the ports to the network unless needed; the default is `localhost` usage.
+- API keys stay **only** in the LiteLLM `.env`. Never commit that file.
 
-## Estrutura do repositório
+## Repository Structure
 
 ```text
 .
-├── backend/               # Spring Boot — ingestão OTLP + API + SSE
+├── backend/               # Spring Boot — OTLP ingestion + API + SSE
 ├── frontend/              # Angular — dashboard
-├── otel/                  # Config do OpenTelemetry Collector
-├── docker-compose.yml     # Orquestração (caminho feliz)
-├── docker-compose.dev.yml # Overrides de debug/hot-reload
-├── .env.example           # Todas as variáveis configuráveis
-├── MANUAL.md              # Guia passo a passo para iniciantes
-└── README.md              # Este arquivo (visão técnica)
+├── otel/                  # OpenTelemetry Collector config
+├── docker-compose.yml     # Orchestration (happy path)
+├── docker-compose.dev.yml # Debug/hot-reload overrides
+├── .env.example           # All configurable variables
+├── docs/                  # Step-by-step guides for beginners
+│   ├── MANUAL.md          # English version (canonical docs)
+│   ├── MANUAL.pt-BR.md    # Brazilian Portuguese version
+│   ├── MANUAL.es.md       # Spanish version
+│   ├── MANUAL.fr.md       # French version
+│   └── MANUAL.it.md       # Italian version
+├── README.md              # This file (technical overview, English — canonical docs)
+├── README.pt-BR.md        # Brazilian Portuguese version
+├── README.es.md           # Spanish version
+├── README.fr.md           # French version
+└── README.it.md           # Italian version
 ```
 
 ## Roadmap
 
-- [ ] Agregação dedicada de métricas e logs OTLP (hoje aceitos, sem agregação)
-- [ ] Plugin OpenCode/ACHERNAR enviando eventos para `/api/events` (correlação `PROJECT.yaml`, agent, subagent, MCP e tools com spans LLM)
+- [ ] Dedicated aggregation of OTLP metrics and logs (accepted today, no aggregation)
+- [ ] OpenCode/ACHERNAR plugin sending events to `/api/events` (`PROJECT.yaml`, agent, subagent, MCP and tool correlation with LLM spans)
