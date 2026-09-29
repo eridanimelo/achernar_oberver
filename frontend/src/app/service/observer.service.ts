@@ -36,4 +36,8 @@ export class ObserverService {
   getTimeseries(params: HttpParams): Observable<any[]> {
     return this.http.get<any[]>('/api/timeseries', { params }).pipe(timeout(API_TIMEOUT_MS));
   }
+
+  getVersion(): Observable<{ version: string; name: string }> {
+    return this.http.get<{ version: string; name: string }>('/api/version').pipe(timeout(API_TIMEOUT_MS));
+  }
 }

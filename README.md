@@ -69,6 +69,18 @@ Default host ports (adjustable via `.env`):
 
 ## Quick Start
 
+**Option A — published images (no git clone):**
+
+```bash
+mkdir achernar-observer && cd achernar-observer
+curl -o docker-compose.yml https://raw.githubusercontent.com/eridanimelo/achernar_oberver/master/docker-compose.hub.yml
+mkdir -p otel && curl -o otel/otel-collector-config.yaml https://raw.githubusercontent.com/eridanimelo/achernar_oberver/master/otel/otel-collector-config.yaml
+docker compose up -d
+docker compose ps
+```
+
+**Option B — from source:**
+
 ```bash
 cp .env.example .env
 docker compose up -d --build
@@ -112,25 +124,30 @@ All options live in `.env` (copied from `.env.example`) and have sensible defaul
 | `OBSERVER_CAPTURE_PAYLOADS` | `true` | Persists span request/response |
 | `OBSERVER_CAPTURE_HEADERS` | `true` | Persists headers when OTEL provides them |
 | `OBSERVER_REDACT_SECRETS` | `true` | Redacts secrets before persisting |
-| `BACKEND_IMAGE` / `FRONTEND_IMAGE` | `achernar-observer-backend:latest` / `achernar-observer-frontend:latest` | Point to `ghcr.io/<user>/...` to pull published images instead of building |
+| `BACKEND_IMAGE` / `FRONTEND_IMAGE` | `achernar-observer-backend:latest` / `achernar-observer-frontend:latest` | Point to `eridani/achernar-observer-...` to pull published images instead of building |
 
 After editing `.env`, recreate: `docker compose up -d`.
 
 ### Publishing Images
 
 ```bash
-docker compose build
-docker tag achernar-observer-backend:latest ghcr.io/<user>/observer-backend:<versao>
-docker tag achernar-observer-frontend:latest ghcr.io/<user>/observer-frontend:<versao>
-docker push ghcr.io/<user>/observer-backend:<versao>
-docker push ghcr.io/<user>/observer-frontend:<versao>
+APP_VERSION=2.1.0
+docker compose build --build-arg APP_VERSION=$APP_VERSION
+docker tag achernar-observer-backend:latest eridani/achernar-observer-backend:$APP_VERSION
+docker tag achernar-observer-backend:latest eridani/achernar-observer-backend:latest
+docker tag achernar-observer-frontend:latest eridani/achernar-observer-frontend:$APP_VERSION
+docker tag achernar-observer-frontend:latest eridani/achernar-observer-frontend:latest
+docker push eridani/achernar-observer-backend:$APP_VERSION
+docker push eridani/achernar-observer-backend:latest
+docker push eridani/achernar-observer-frontend:$APP_VERSION
+docker push eridani/achernar-observer-frontend:latest
 ```
 
 To run without building, set in `.env`:
 
 ```env
-BACKEND_IMAGE=ghcr.io/<user>/observer-backend:<versao>
-FRONTEND_IMAGE=ghcr.io/<user>/observer-frontend:<versao>
+BACKEND_IMAGE=eridani/achernar-observer-backend:2.1.0
+FRONTEND_IMAGE=eridani/achernar-observer-frontend:2.1.0
 ```
 
 and start with `docker compose up -d` (without `--build`).

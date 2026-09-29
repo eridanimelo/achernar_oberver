@@ -75,3 +75,12 @@ observer:
     redact-secrets: ${OBSERVER_REDACT_SECRETS:true}
 
   default-project: ${OBSERVER_DEFAULT_PROJECT:UNKNOWN}
+
+app:
+  # Overridden at Docker build time via --build-arg APP_VERSION
+  version: ${APP_VERSION:2.1.0}
+
+info:
+  app:
+    name: achernar-observer
+    version: ${APP_VERSION:2.1.0}

@@ -1,12 +1,16 @@
-# Caminho feliz: qualquer pessoa roda `docker compose up -d --build`
-# e abre http://localhost:18180 (frontend) e http://localhost:4318 (OTLP).
+# Achernar Observer — run from published images (no git clone, no build).
 #
-# Todas as portas, senhas e nomes de imagem têm default sensato e podem
-# ser sobrescritas no `.env` (copie de `.env.example`). O `.env` da raiz
-# é lido automaticamente pelo compose para interpolar as variáveis abaixo,
-# então nenhum `env_file` é necessário.
+#   mkdir achernar-observer && cd achernar-observer
+#   curl -o docker-compose.yml https://raw.githubusercontent.com/eridanimelo/achernar_oberver/master/docker-compose.hub.yml
+#   mkdir -p otel && curl -o otel/otel-collector-config.yaml https://raw.githubusercontent.com/eridanimelo/achernar_oberver/master/otel/otel-collector-config.yaml
+#   docker compose up -d
+#   docker compose ps
 #
-# Debug local: veja `docker-compose.dev.yml`.
+# Dashboard: http://localhost:18180 · API: http://localhost:18080 · OTLP: http://localhost:4318
+#
+# All ports, passwords and image tags have sensible defaults and can be
+# overridden with environment variables (e.g. BACKEND_IMAGE, FRONTEND_PORT).
+# To run another release, replace the :2.1.0 tags below.
 
 services:
   postgres:
@@ -17,8 +21,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-achernar}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-achernar}
     ports:
-      # 5433 de propósito: a 5432 quase sempre já está ocupada por outro postgres.
-      # Quem quiser o padrão, define POSTGRES_PORT=5432 no .env
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - observer_postgres:/var/lib/postgresql/data
@@ -29,19 +31,10 @@ services:
       retries: 10
 
   backend:
-    # `image` + `build` juntos: se a imagem publicada existir, o compose
-    # pode puxá-la (veja README "Publicar imagens"); senão, builda local.
-    image: ${BACKEND_IMAGE:-achernar-observer-backend:latest}
-    build:
-      context: ./backend
-      args:
-        APP_VERSION: ${APP_VERSION:-2.1.0}
+    image: ${BACKEND_IMAGE:-eridani/achernar-observer-backend:2.1.0}
     restart: unless-stopped
     environment:
       APP_VERSION: ${APP_VERSION:-2.1.0}
-      # Dentro do compose o host do banco é `postgres` (não localhost).
-      # Rodando o backend fora do docker, vale o default do application.yml
-      # (jdbc:postgresql://localhost:5432/achernar_observer).
       DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-achernar_observer}
       DATABASE_USERNAME: ${POSTGRES_USER:-achernar}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-achernar}
@@ -62,8 +55,6 @@ services:
     restart: unless-stopped
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     environment:
-      # Dentro do compose o backend é http://backend:8080/otel.
-      # Backend fora do docker (debug): OTEL_EXPORTER_ENDPOINT=http://host.docker.internal:8080/otel
       OTEL_EXPORTER_ENDPOINT: ${OTEL_EXPORTER_ENDPOINT:-http://backend:8080/otel}
     volumes:
       - ./otel/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
@@ -74,11 +65,7 @@ services:
         condition: service_healthy
 
   frontend:
-    image: ${FRONTEND_IMAGE:-achernar-observer-frontend:latest}
-    build:
-      context: ./frontend
-      args:
-        APP_VERSION: ${APP_VERSION:-2.1.0}
+    image: ${FRONTEND_IMAGE:-eridani/achernar-observer-frontend:2.1.0}
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-18180}:80"

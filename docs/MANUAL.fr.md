@@ -56,6 +56,17 @@ Ports utilisés sur votre machine. Si l'un d'eux est occupé, consultez
 
 ## 3. Étape 1 — Démarrer l'Observer
 
+**Option A — images publiées (sans git clone) :**
+
+```bash
+mkdir achernar-observer && cd achernar-observer
+curl -o docker-compose.yml https://raw.githubusercontent.com/eridanimelo/achernar_oberver/master/docker-compose.hub.yml
+mkdir -p otel && curl -o otel/otel-collector-config.yaml https://raw.githubusercontent.com/eridanimelo/achernar_oberver/master/otel/otel-collector-config.yaml
+docker compose up -d
+```
+
+**Option B — depuis le code :**
+
 ```bash
 git clone <url-du-depot> achernar-observer
 cd achernar-observer

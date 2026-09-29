@@ -213,7 +213,7 @@
           <ng-template #noSelection><div class="detail-empty"><div>⌁</div><strong>{{ 'detail.selectTitle' | translate }}</strong><p>{{ 'detail.selectText' | translate }}</p></div></ng-template>
         </div>
       </section>
-      <footer>ACHERNAR OBSERVER <span>·</span> {{ 'footer.suffix' | translate }}</footer>
+      <footer>ACHERNAR OBSERVER v{{ appVersion }}<span *ngIf="backendVersion"> · API v{{ backendVersion }}</span> <span>·</span> {{ 'footer.suffix' | translate }}</footer>
     </div>
   </main>
 </div>

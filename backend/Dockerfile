@@ -17,6 +17,12 @@ RUN mvn -q -DskipTests=${SKIP_TESTS} package
 # ---------- runtime ----------
 FROM eclipse-temurin:26-jre
 
+ARG APP_VERSION=2.1.0
+ENV APP_VERSION=${APP_VERSION}
+LABEL org.opencontainers.image.title="achernar-observer-backend" \
+      org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.source="https://github.com/eridanimelo/achernar_oberver"
+
 # curl = healthcheck contra o actuator
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \

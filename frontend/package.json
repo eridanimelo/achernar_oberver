@@ -1,4 +1,6 @@
 {
+  "name": "achernar-observer-frontend",
+  "version": "2.1.0",
   "scripts": {
     "start": "ng serve --proxy-config proxy.conf.json",
     "build": "ng build"

@@ -56,6 +56,17 @@ seção [Trocar portas](#9-trocar-portas):
 
 ## 3. Passo 1 — Subir o Observer
 
+**Opção A — imagens publicadas (sem git clone):**
+
+```bash
+mkdir achernar-observer && cd achernar-observer
+curl -o docker-compose.yml https://raw.githubusercontent.com/eridanimelo/achernar_oberver/master/docker-compose.hub.yml
+mkdir -p otel && curl -o otel/otel-collector-config.yaml https://raw.githubusercontent.com/eridanimelo/achernar_oberver/master/otel/otel-collector-config.yaml
+docker compose up -d
+```
+
+**Opção B — a partir do código:**
+
 ```bash
 git clone <url-do-repositorio> achernar-observer
 cd achernar-observer

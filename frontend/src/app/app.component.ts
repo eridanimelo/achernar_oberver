@@ -4,6 +4,7 @@ import { ChangeDetectorRef, Component, HostListener, OnDestroy, OnInit } from '@
 import { FormsModule } from '@angular/forms';
 import { Subscription, finalize, forkJoin, timer } from 'rxjs';
 import { Span } from './model/span.model';
+import { APP_VERSION } from './version';
 import { I18nService, SUPPORTED_LANGS, SupportedLang } from './service/i18n.service';
 import { ObserverService } from './service/observer.service';
 import { TranslatePipe } from './service/translate.pipe';
@@ -84,6 +85,8 @@ export class AppComponent implements OnInit, OnDestroy {
   ) {}
 
   readonly langs = SUPPORTED_LANGS;
+  readonly appVersion = APP_VERSION;
+  backendVersion?: string;
   showSettings = false;
 
   toggleSettings(): void {
@@ -109,6 +112,10 @@ export class AppComponent implements OnInit, OnDestroy {
     this.page = 0;
     this.load();
     this.connectLive();
+    this.observerService.getVersion().subscribe({
+      next: v => { this.backendVersion = v?.version; this.refreshView(); },
+      error: () => undefined
+    });
   }
 
   ngOnDestroy(): void {

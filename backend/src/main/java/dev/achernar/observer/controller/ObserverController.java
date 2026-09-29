@@ -19,6 +19,7 @@ import java.util.UUID;
 import java.util.function.Function;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
@@ -43,6 +44,9 @@ public class ObserverController {
     private final ProjectResolver projectResolver;
     private final LiveTelemetryService liveTelemetry;
     private final OpenCodeIngestService openCodeIngestService;
+
+    @Value("${app.version:unknown}")
+    private String appVersion;
 
     public ObserverController(
             ProxyService proxyService,
@@ -91,6 +95,11 @@ public class ObserverController {
     @GetMapping(value = "/api/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream() {
         return liveTelemetry.subscribe();
+    }
+
+    @GetMapping("/api/version")
+    public Map<String, String> version() {
+        return Map.of("name", "achernar-observer-backend", "version", appVersion);
     }
 
     @DeleteMapping("/api/traces")
