@@ -10,7 +10,7 @@ RUN npm run build
 
 FROM nginx:alpine
 
-ARG APP_VERSION=2.1.0
+ARG APP_VERSION=2.1.1
 ENV APP_VERSION=${APP_VERSION}
 LABEL org.opencontainers.image.title="achernar-observer-frontend" \
       org.opencontainers.image.version="${APP_VERSION}" \

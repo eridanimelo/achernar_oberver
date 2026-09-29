@@ -130,24 +130,53 @@ Tras editar `.env`, recrea: `docker compose up -d`.
 
 ### Publicar imágenes
 
+Las imágenes son multi-plataforma (`linux/amd64`, `linux/arm64`) publicadas con
+Docker Buildx como un único manifest por tag. No fijes `platform:` en los
+archivos compose — Docker selecciona automáticamente la imagen del host.
+
 ```bash
-APP_VERSION=2.1.0
-docker compose build --build-arg APP_VERSION=$APP_VERSION
-docker tag achernar-observer-backend:latest eridani/achernar-observer-backend:$APP_VERSION
-docker tag achernar-observer-backend:latest eridani/achernar-observer-backend:latest
-docker tag achernar-observer-frontend:latest eridani/achernar-observer-frontend:$APP_VERSION
-docker tag achernar-observer-frontend:latest eridani/achernar-observer-frontend:latest
-docker push eridani/achernar-observer-backend:$APP_VERSION
-docker push eridani/achernar-observer-backend:latest
-docker push eridani/achernar-observer-frontend:$APP_VERSION
-docker push eridani/achernar-observer-frontend:latest
+./scripts/docker-publish.sh 2.1.1
+```
+
+Equivalente (en la raíz del repo, tras `docker login`):
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t eridani/achernar-observer-backend:2.1.1 \
+  -t eridani/achernar-observer-backend:latest \
+  --build-arg APP_VERSION=2.1.1 --push ./backend
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t eridani/achernar-observer-frontend:2.1.1 \
+  -t eridani/achernar-observer-frontend:latest \
+  --build-arg APP_VERSION=2.1.1 --push ./frontend
+```
+
+El script crea/reutiliza el builder `docker-container` (`achernar-builder`) de
+forma idempotente. Nunca uses `--load` en el build multi-plataforma — el
+resultado debe ir al registry.
+
+Verificación tras publicar:
+
+```bash
+docker buildx imagetools inspect eridani/achernar-observer-backend:2.1.1
+docker buildx imagetools inspect eridani/achernar-observer-frontend:2.1.1
+# ambos deben listar linux/amd64 y linux/arm64
+```
+
+El comando es el mismo en todos los entornos (Linux AMD64/ARM64, macOS
+Intel/Apple Silicon, Windows + Docker Desktop/WSL2 con Linux Containers):
+
+```bash
+# Mac Apple Silicon / Linux AMD64 / Windows WSL2 — mismo comando
+docker compose up -d
+docker compose ps
 ```
 
 Quien vaya a ejecutar sin compilar, define en `.env`:
 
 ```env
-BACKEND_IMAGE=eridani/achernar-observer-backend:2.1.0
-FRONTEND_IMAGE=eridani/achernar-observer-frontend:2.1.0
+BACKEND_IMAGE=eridani/achernar-observer-backend:2.1.1
+FRONTEND_IMAGE=eridani/achernar-observer-frontend:2.1.1
 ```
 
 y levanta con `docker compose up -d` (sin `--build`).

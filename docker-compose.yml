@@ -35,10 +35,10 @@ services:
     build:
       context: ./backend
       args:
-        APP_VERSION: ${APP_VERSION:-2.1.0}
+        APP_VERSION: ${APP_VERSION:-2.1.1}
     restart: unless-stopped
     environment:
-      APP_VERSION: ${APP_VERSION:-2.1.0}
+      APP_VERSION: ${APP_VERSION:-2.1.1}
       # Dentro do compose o host do banco é `postgres` (não localhost).
       # Rodando o backend fora do docker, vale o default do application.yml
       # (jdbc:postgresql://localhost:5432/achernar_observer).
@@ -78,7 +78,7 @@ services:
     build:
       context: ./frontend
       args:
-        APP_VERSION: ${APP_VERSION:-2.1.0}
+        APP_VERSION: ${APP_VERSION:-2.1.1}
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-18180}:80"

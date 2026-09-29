@@ -10,7 +10,7 @@
 #
 # All ports, passwords and image tags have sensible defaults and can be
 # overridden with environment variables (e.g. BACKEND_IMAGE, FRONTEND_PORT).
-# To run another release, replace the :2.1.0 tags below.
+# To run another release, replace the :2.1.1 tags below.
 
 services:
   postgres:
@@ -31,10 +31,10 @@ services:
       retries: 10
 
   backend:
-    image: ${BACKEND_IMAGE:-eridani/achernar-observer-backend:2.1.0}
+    image: ${BACKEND_IMAGE:-eridani/achernar-observer-backend:2.1.1}
     restart: unless-stopped
     environment:
-      APP_VERSION: ${APP_VERSION:-2.1.0}
+      APP_VERSION: ${APP_VERSION:-2.1.1}
       DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-achernar_observer}
       DATABASE_USERNAME: ${POSTGRES_USER:-achernar}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-achernar}
@@ -65,7 +65,7 @@ services:
         condition: service_healthy
 
   frontend:
-    image: ${FRONTEND_IMAGE:-eridani/achernar-observer-frontend:2.1.0}
+    image: ${FRONTEND_IMAGE:-eridani/achernar-observer-frontend:2.1.1}
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-18180}:80"

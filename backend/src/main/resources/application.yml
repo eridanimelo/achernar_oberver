@@ -78,9 +78,9 @@ observer:
 
 app:
   # Overridden at Docker build time via --build-arg APP_VERSION
-  version: ${APP_VERSION:2.1.0}
+  version: ${APP_VERSION:2.1.1}
 
 info:
   app:
     name: achernar-observer
-    version: ${APP_VERSION:2.1.0}
+    version: ${APP_VERSION:2.1.1}
