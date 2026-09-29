@@ -405,6 +405,64 @@ Si la herramienta tiene un campo de endpoint/base URL personalizado, aplica la
 tabla del inicio de esta sección. Si solo acepta la clave oficial del proveedor,
 no pasa por LiteLLM — y por tanto no aparece en el Observer.
 
+### 5.7. Plugin Observer de OpenCode (flujo del agente) + nombrar tus docs
+
+OTLP (secciones 4–5) muestra las llamadas LLM. Para ver también el **flujo
+del agente** (sesión, agent, tools, MCP) en el detalle del span, instala el
+plugin del Observer para OpenCode V2. El archivo está en este repo en
+`plugins/achernar-observer.js`:
+
+```bash
+# por proyecto
+mkdir -p .opencode/plugins
+cp /ruta/a/achernar-observer/plugins/achernar-observer.js .opencode/plugins/
+
+# o global (todos los proyectos)
+mkdir -p ~/.config/opencode/plugins
+cp /ruta/a/achernar-observer/plugins/achernar-observer.js ~/.config/opencode/plugins/
+```
+
+En el **`.env` del proyecto** (el que carga OpenCode), define:
+
+```env
+ACHERNAR_OBSERVER_URL=http://localhost:18080
+ACHERNAR_PROJECT=mi-proyecto
+```
+
+Notas:
+
+- Orden de resolución: `process.env` → `.env` (buscado desde la carpeta del
+  plugin) → valor por defecto `http://localhost:18080`. Ajusta el puerto si
+  cambiaste `BACKEND_PORT` en el `.env` del Observer.
+- Sin `ACHERNAR_PROJECT`, el proyecto usa el nombre de la carpeta del
+  directorio del evento y luego `OBSERVER_DEFAULT_PROJECT` (`UNKNOWN` por
+  defecto). Usa un nombre fijo por proyecto para que el filtro agrupe bien.
+- El plugin envía eventos `session.*`, `message.*`, `tool.*` y `*mcp*` a
+  `POST /api/opencode/events` con timeout de 1500 ms. Si el Observer está
+  caído, el agente sigue funcionando — la observabilidad nunca rompe
+  la ejecución.
+- Verifica: usa el agente una vez, revisa el detalle (pestañas de flujo /
+  conversación / tools) y `docker compose logs -f backend`.
+
+#### Mejor diagrama de flujo con cabecera frontmatter
+
+Añade una cabecera YAML al inicio de tus `AGENT.md`, `SKILL.md` o archivos
+de rules:
+
+```markdown
+---
+name: agent-backend
+type: agent
+description: "Backend Developer"
+---
+```
+
+La pestaña de flujo usa el `name` de la cabecera (alternativa: nombre de la
+carpeta), `type`/`kind` (alternativa: tipo inferido) y `description`
+(visible en el detalle del nodo). Sin cabecera, nombres genéricos como
+`SKILL.md` usan el nombre de la carpeta padre — sigue agrupando, pero se lee
+peor.
+
 ## 6. Paso 4 — Probar de punta a punta
 
 1. Abre OpenCode (o tu cliente de la sección 5) y elige un modelo de LiteLLM.

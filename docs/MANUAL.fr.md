@@ -405,6 +405,63 @@ Si l'outil propose un champ d'endpoint/base URL personnalisé, appliquez le
 tableau du début de cette section. S'il n'accepte que la clé officielle du
 fournisseur, il ne passe pas par LiteLLM — et n'apparaît donc pas dans l'Observer.
 
+### 5.7. Plugin Observer d'OpenCode (flux de l'agent) + nommer vos docs
+
+OTLP (sections 4–5) affiche les appels LLM. Pour voir aussi le **flux de
+l'agent** (session, agent, tools, MCP) dans le détail du span, installez le
+plugin Observer pour OpenCode V2. Le fichier se trouve dans ce dépôt sous
+`plugins/achernar-observer.js` :
+
+```bash
+# par projet
+mkdir -p .opencode/plugins
+cp /chemin/vers/achernar-observer/plugins/achernar-observer.js .opencode/plugins/
+
+# ou global (tous les projets)
+mkdir -p ~/.config/opencode/plugins
+cp /chemin/vers/achernar-observer/plugins/achernar-observer.js ~/.config/opencode/plugins/
+```
+
+Dans le **`.env` du projet** (celui chargé par OpenCode), définissez :
+
+```env
+ACHERNAR_OBSERVER_URL=http://localhost:18080
+ACHERNAR_PROJECT=mon-projet
+```
+
+Notes :
+
+- Ordre de résolution : `process.env` → `.env` (recherché depuis le dossier
+  du plugin) → défaut `http://localhost:18080`. Ajustez le port si vous avez
+  changé `BACKEND_PORT` dans le `.env` de l'Observer.
+- Sans `ACHERNAR_PROJECT`, le projet utilise le nom du dossier du répertoire
+  de l'événement, puis `OBSERVER_DEFAULT_PROJECT` (`UNKNOWN` par défaut).
+  Utilisez un nom fixe par projet pour un bon regroupement dans le filtre.
+- Le plugin envoie les événements `session.*`, `message.*`, `tool.*` et
+  `*mcp*` vers `POST /api/opencode/events` avec un timeout de 1500 ms. Si
+  l'Observer est arrêté, l'agent continue de fonctionner — l'observabilité ne
+  casse jamais l'exécution.
+- Vérifiez : utilisez l'agent une fois, contrôlez le détail (onglets flux /
+  conversation / tools) et `docker compose logs -f backend`.
+
+#### Meilleur diagramme de flux avec un en-tête frontmatter
+
+Ajoutez un en-tête YAML en haut de vos `AGENT.md`, `SKILL.md` ou fichiers
+de rules :
+
+```markdown
+---
+name: agent-backend
+type: agent
+description: "Backend Developer"
+---
+```
+
+L'onglet de flux utilise le `name` de l'en-tête (repli : nom du dossier),
+`type`/`kind` (repli : type inféré) et `description` (affichée dans le détail
+du nœud). Sans en-tête, les noms génériques comme `SKILL.md` utilisent le nom
+du dossier parent — le regroupement reste correct, mais c'est moins lisible.
+
 ## 6. Étape 4 — Test de bout en bout
 
 1. Ouvrez OpenCode (ou votre client de la section 5) et choisissez un modèle LiteLLM.

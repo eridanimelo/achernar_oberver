@@ -405,6 +405,61 @@ If the tool has a custom endpoint/base URL field, apply the
 table at the top of this section. If it only accepts the provider's official
 key, it does not go through LiteLLM — and therefore does not show up in the Observer.
 
+### 5.7. OpenCode Observer Plugin (Agent Flow) + Naming Your Docs
+
+OTLP (sections 4–5) shows the LLM calls. To also see the **agent flow**
+(session, agent, tools, MCP) in the span detail view, install the Observer
+plugin for OpenCode V2. The file lives in this repo at
+`plugins/achernar-observer.js`:
+
+```bash
+# per project
+mkdir -p .opencode/plugins
+cp /path/to/achernar-observer/plugins/achernar-observer.js .opencode/plugins/
+
+# or global (all projects)
+mkdir -p ~/.config/opencode/plugins
+cp /path/to/achernar-observer/plugins/achernar-observer.js ~/.config/opencode/plugins/
+```
+
+In the **project `.env`** (the one OpenCode loads), set:
+
+```env
+ACHERNAR_OBSERVER_URL=http://localhost:18080
+ACHERNAR_PROJECT=my-project-name
+```
+
+Notes:
+
+- Resolution order: `process.env` → `.env` (walked up from the plugin
+  file) → default `http://localhost:18080`. Adjust the port if you changed
+  `BACKEND_PORT` in the Observer `.env`.
+- Without `ACHERNAR_PROJECT`, the project falls back to the event directory
+  basename, then to `OBSERVER_DEFAULT_PROJECT` (`UNKNOWN` by default).
+  Use one fixed name per project so the dashboard filter groups correctly.
+- The plugin POSTs `session.*`, `message.*`, `tool.*` and `*mcp*` events to
+  `POST /api/opencode/events` with a 1500 ms timeout. If the Observer is
+  down, the agent keeps working — observability never breaks execution.
+- Verify: use the agent once, then check the dashboard detail (Flow /
+  Conversation / Tools tabs) and `docker compose logs -f backend`.
+
+#### Better Flow Diagram with a Frontmatter Header
+
+Add a YAML header at the top of your `AGENT.md`, `SKILL.md` or rule files:
+
+```markdown
+---
+name: agent-backend
+type: agent
+description: "Backend Developer"
+---
+```
+
+The Flow tab uses the header `name` (fallback: folder name),
+`type`/`kind` (fallback: inferred type) and `description` (shown in the node
+detail). Without a header, generic filenames such as `SKILL.md` fall back to
+the parent folder name — still grouped, but less readable.
+
 ## 6. Step 4 — Test End to End
 
 1. Open OpenCode (or your client from section 5) and pick a LiteLLM model.

@@ -20,6 +20,7 @@ Observabilidade local para chamadas LLM — modelo, tokens, custo estimado, lat�
 - [Início rápido](#início-rápido)
 - [Configuração](#configuração)
 - [Conectando o LiteLLM](#conectando-o-litellm)
+- [Plugin OpenCode (fluxo do agente)](#plugin-opencode-fluxo-do-agente)
 - [Desenvolvimento](#desenvolvimento)
 - [Solução de problemas](#solução-de-problemas)
 - [Privacidade e segurança](#privacidade-e-segurança)
@@ -153,6 +154,42 @@ Resumo — o passo a passo completo (com `config.yaml`, `.env` e `docker-compose
    (Se o LiteLLM rodar fora do Docker, use `http://localhost:4318`.)
 3. Reinicie o LiteLLM e aponte seu cliente para `http://localhost:4000/v1`.
 
+## Plugin OpenCode (fluxo do agente)
+
+O OTLP mostra as chamadas LLM. Para ver também o **fluxo do agente** (sessão, agent, tools, MCP) no detalhe do dashboard, instale o plugin do Observer para OpenCode V2. O arquivo está neste repo em `plugins/achernar-observer.js`.
+
+1. Copie para o seu projeto ou para a config global do OpenCode:
+   ```bash
+   # por projeto
+   mkdir -p .opencode/plugins
+   cp /caminho/para/achernar-observer/plugins/achernar-observer.js .opencode/plugins/
+
+   # ou global (todos os projetos)
+   mkdir -p ~/.config/opencode/plugins
+   cp /caminho/para/achernar-observer/plugins/achernar-observer.js ~/.config/opencode/plugins/
+   ```
+2. No **`.env` do projeto** (o que o OpenCode carrega), defina:
+   ```env
+   ACHERNAR_OBSERVER_URL=http://localhost:18080
+   ACHERNAR_PROJECT=meu-projeto
+   ```
+   Ordem de resolução: `process.env` → `.env` (procurado a partir da pasta do plugin) → padrão `http://localhost:18080`. Sem `ACHERNAR_PROJECT`, o projeto cai para o nome da pasta do diretório do evento e depois para `OBSERVER_DEFAULT_PROJECT` (`UNKNOWN` por padrão).
+3. Reinicie o OpenCode. O plugin envia eventos semânticos (`session.*`, `message.*`, `tool.*`, `*mcp*`) para `POST /api/opencode/events` com timeout de 1500 ms — se o Observer estiver fora do ar, o agente continua funcionando normalmente.
+
+### Nomeie seus agentes, skills e rules (frontmatter)
+
+A aba Fluxo desenha um diagrama bem melhor quando os docs têm um header YAML. Adicione no topo dos seus `AGENT.md`, `SKILL.md` ou arquivos de rule:
+
+```markdown
+---
+name: agent-backend
+type: agent
+description: "Backend Developer"
+---
+```
+
+O dashboard usa o `name` do header (fallback: nome da pasta), `type`/`kind` (fallback: tipo inferido) e `description` (exibida no detalhe do nó). Sem header, nomes genéricos como `SKILL.md` ou `AGENT.md` caem para o nome da pasta pai.
+
 ## Desenvolvimento
 
 Pré-requisito: caminho feliz (`docker compose up -d --build`) validado antes de publicar.
@@ -191,6 +228,7 @@ Guia completo com logs e verificação: **[MANUAL.md §8](docs/MANUAL.pt-BR.md#8
 ├── backend/               # Spring Boot — ingestão OTLP + API + SSE
 ├── frontend/              # Angular — dashboard
 ├── otel/                  # Config do OpenTelemetry Collector
+├── plugins/               # Plugin OpenCode V2 (eventos semânticos → /api/opencode/events)
 ├── docker-compose.yml     # Orquestração (caminho feliz)
 ├── docker-compose.dev.yml # Overrides de debug/hot-reload
 ├── .env.example           # Todas as variáveis configuráveis
@@ -210,4 +248,4 @@ Guia completo com logs e verificação: **[MANUAL.md §8](docs/MANUAL.pt-BR.md#8
 ## Roadmap
 
 - [ ] Agregação dedicada de métricas e logs OTLP (hoje aceitos, sem agregação)
-- [ ] Plugin OpenCode/ACHERNAR enviando eventos para `/api/events` (correlação `PROJECT.yaml`, agent, subagent, MCP e tools com spans LLM)
+- [x] Plugin OpenCode enviando eventos semânticos para `POST /api/opencode/events` (correlação de sessão, agent, tool e MCP com spans LLM — ver `plugins/achernar-observer.js`)

@@ -20,6 +20,7 @@ Local observability for LLM-powered applications — model, tokens, estimated co
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
 - [Connecting LiteLLM](#connecting-litellm)
+- [OpenCode Plugin (Agent Flow)](#opencode-plugin-agent-flow)
 - [Development](#development)
 - [Troubleshooting](#troubleshooting)
 - [Privacy and Security](#privacy-and-security)
@@ -153,6 +154,42 @@ Summary — the full step-by-step (with ready-to-copy `config.yaml`, `.env` and 
    (If LiteLLM runs outside Docker, use `http://localhost:4318`.)
 3. Restart LiteLLM and point your client to `http://localhost:4000/v1`.
 
+## OpenCode Plugin (Agent Flow)
+
+OTLP shows the LLM calls. To also see the **agent flow** (session, agent, tools, MCP) in the dashboard detail view, install the Observer plugin for OpenCode V2. The file lives in this repo at `plugins/achernar-observer.js`.
+
+1. Copy it to your project or to the global OpenCode config:
+   ```bash
+   # per project
+   mkdir -p .opencode/plugins
+   cp /path/to/achernar-observer/plugins/achernar-observer.js .opencode/plugins/
+
+   # or global (all projects)
+   mkdir -p ~/.config/opencode/plugins
+   cp /path/to/achernar-observer/plugins/achernar-observer.js ~/.config/opencode/plugins/
+   ```
+2. In the **project `.env`** (the one OpenCode loads), set:
+   ```env
+   ACHERNAR_OBSERVER_URL=http://localhost:18080
+   ACHERNAR_PROJECT=my-project-name
+   ```
+   Resolution order: `process.env` → `.env` (walked up from the plugin file) → default `http://localhost:18080`. If `ACHERNAR_PROJECT` is omitted, the project falls back to the event directory basename, then to `OBSERVER_DEFAULT_PROJECT` (`UNKNOWN` by default).
+3. Restart OpenCode. The plugin POSTs semantic events (`session.*`, `message.*`, `tool.*`, `*mcp*`) to `POST /api/opencode/events` with a 1500 ms timeout — if the Observer is down, the agent keeps working normally.
+
+### Name Your Agents, Skills and Rules (Frontmatter)
+
+The Flow tab shows a much better diagram when docs carry a YAML header. Add this at the top of your `AGENT.md`, `SKILL.md` or rule files:
+
+```markdown
+---
+name: agent-backend
+type: agent
+description: "Backend Developer"
+---
+```
+
+The dashboard uses the header `name` (fallback: folder name), `type`/`kind` (fallback: inferred type) and `description` (shown in the node detail). Without a header, generic filenames such as `SKILL.md` or `AGENT.md` fall back to the parent folder name.
+
 ## Development
 
 Prerequisite: happy path (`docker compose up -d --build`) validated before publishing.
@@ -191,6 +228,7 @@ Full guide with logs and verification: **[MANUAL.md §8](docs/MANUAL.md#8-common
 ├── backend/               # Spring Boot — OTLP ingestion + API + SSE
 ├── frontend/              # Angular — dashboard
 ├── otel/                  # OpenTelemetry Collector config
+├── plugins/               # OpenCode V2 plugin (semantic events → /api/opencode/events)
 ├── docker-compose.yml     # Orchestration (happy path)
 ├── docker-compose.dev.yml # Debug/hot-reload overrides
 ├── .env.example           # All configurable variables
@@ -210,4 +248,4 @@ Full guide with logs and verification: **[MANUAL.md §8](docs/MANUAL.md#8-common
 ## Roadmap
 
 - [ ] Dedicated aggregation of OTLP metrics and logs (accepted today, no aggregation)
-- [ ] OpenCode/ACHERNAR plugin sending events to `/api/events` (`PROJECT.yaml`, agent, subagent, MCP and tool correlation with LLM spans)
+- [x] OpenCode plugin sending semantic events to `POST /api/opencode/events` (session, agent, tool and MCP correlation with LLM spans — see `plugins/achernar-observer.js`)

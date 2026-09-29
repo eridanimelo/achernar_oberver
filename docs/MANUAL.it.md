@@ -405,6 +405,63 @@ Se lo strumento ha un campo di endpoint/base URL personalizzato, applica la
 tabella all'inizio di questa sezione. Se accetta solo la chiave ufficiale del
 provider, non passa da LiteLLM — e quindi non appare nell'Observer.
 
+### 5.7. Plugin Observer di OpenCode (flusso dell'agente) + dare un nome ai doc
+
+OTLP (sezioni 4–5) mostra le chiamate LLM. Per vedere anche il **flusso
+dell'agente** (sessione, agent, tool, MCP) nel dettaglio dello span, installa
+il plugin Observer per OpenCode V2. Il file si trova in questo repo in
+`plugins/achernar-observer.js`:
+
+```bash
+# per progetto
+mkdir -p .opencode/plugins
+cp /percorso/a/achernar-observer/plugins/achernar-observer.js .opencode/plugins/
+
+# o globale (tutti i progetti)
+mkdir -p ~/.config/opencode/plugins
+cp /percorso/a/achernar-observer/plugins/achernar-observer.js ~/.config/opencode/plugins/
+```
+
+Nel **`.env` del progetto** (quello caricato da OpenCode), imposta:
+
+```env
+ACHERNAR_OBSERVER_URL=http://localhost:18080
+ACHERNAR_PROJECT=mio-progetto
+```
+
+Note:
+
+- Ordine di risoluzione: `process.env` → `.env` (cercato a partire dalla
+  cartella del plugin) → default `http://localhost:18080`. Regola la porta se
+  hai cambiato `BACKEND_PORT` nel `.env` dell'Observer.
+- Senza `ACHERNAR_PROJECT`, il progetto usa il nome della cartella della
+  directory dell'evento e poi `OBSERVER_DEFAULT_PROJECT` (`UNKNOWN` di
+  default). Usa un nome fisso per progetto per raggruppare bene nel filtro.
+- Il plugin invia eventi `session.*`, `message.*`, `tool.*` e `*mcp*` a
+  `POST /api/opencode/events` con timeout di 1500 ms. Se l'Observer è spento,
+  l'agente continua a funzionare — l'osservabilità non rompe mai
+  l'esecuzione.
+- Verifica: usa l'agente una volta, controlla il dettaglio (schede flusso /
+  conversazione / tool) e `docker compose logs -f backend`.
+
+#### Diagramma di flusso migliore con header frontmatter
+
+Aggiungi un header YAML in cima ai tuoi `AGENT.md`, `SKILL.md` o file di
+rule:
+
+```markdown
+---
+name: agent-backend
+type: agent
+description: "Backend Developer"
+---
+```
+
+La scheda di flusso usa il `name` dell'header (fallback: nome della cartella),
+`type`/`kind` (fallback: tipo inferito) e `description` (mostrata nel dettaglio
+del nodo). Senza header, nomi generici come `SKILL.md` usano il nome della
+cartella padre — il raggruppamento resta, ma si legge peggio.
+
 ## 6. Passo 4 — Test end-to-end
 
 1. Apri OpenCode (o il tuo client della sezione 5) e scegli un modello LiteLLM.

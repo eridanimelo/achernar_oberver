@@ -405,6 +405,63 @@ Se a ferramenta tem um campo de endpoint/base URL customizado, aplique a
 tabela do início desta seção. Se ela só aceita chave oficial do provedor,
 ela não passa pelo LiteLLM — e portanto não aparece no Observer.
 
+### 5.7. Plugin Observer do OpenCode (fluxo do agente) + nomeando seus docs
+
+O OTLP (seções 4–5) mostra as chamadas LLM. Para ver também o **fluxo do
+agente** (sessão, agent, tools, MCP) no detalhe do span, instale o plugin do
+Observer para OpenCode V2. O arquivo está neste repo em
+`plugins/achernar-observer.js`:
+
+```bash
+# por projeto
+mkdir -p .opencode/plugins
+cp /caminho/para/achernar-observer/plugins/achernar-observer.js .opencode/plugins/
+
+# ou global (todos os projetos)
+mkdir -p ~/.config/opencode/plugins
+cp /caminho/para/achernar-observer/plugins/achernar-observer.js ~/.config/opencode/plugins/
+```
+
+No **`.env` do projeto** (o que o OpenCode carrega), defina:
+
+```env
+ACHERNAR_OBSERVER_URL=http://localhost:18080
+ACHERNAR_PROJECT=meu-projeto
+```
+
+Notas:
+
+- Ordem de resolução: `process.env` → `.env` (procurado a partir da pasta
+  do plugin) → padrão `http://localhost:18080`. Ajuste a porta se você mudou
+  `BACKEND_PORT` no `.env` do Observer.
+- Sem `ACHERNAR_PROJECT`, o projeto cai para o nome da pasta do diretório do
+  evento e depois para `OBSERVER_DEFAULT_PROJECT` (`UNKNOWN` por padrão).
+  Use um nome fixo por projeto para o filtro do dashboard agrupar direito.
+- O plugin envia eventos `session.*`, `message.*`, `tool.*` e `*mcp*` para
+  `POST /api/opencode/events` com timeout de 1500 ms. Se o Observer estiver
+  fora do ar, o agente continua funcionando — observabilidade nunca quebra
+  a execução.
+- Verifique: use o agente uma vez, confira o detalhe no dashboard (abas
+  Fluxo / Conversa / Tools) e `docker compose logs -f backend`.
+
+#### Diagrama de fluxo melhor com header frontmatter
+
+Adicione um header YAML no topo dos seus `AGENT.md`, `SKILL.md` ou arquivos
+de rule:
+
+```markdown
+---
+name: agent-backend
+type: agent
+description: "Backend Developer"
+---
+```
+
+A aba Fluxo usa o `name` do header (fallback: nome da pasta),
+`type`/`kind` (fallback: tipo inferido) e `description` (exibida no detalhe
+do nó). Sem header, nomes genéricos como `SKILL.md` caem para o nome da
+pasta pai — ainda agrupa, mas fica menos legível.
+
 ## 6. Passo 4 — Testar de ponta a ponta
 
 1. Abra o OpenCode (ou seu cliente da seção 5) e escolha um modelo do LiteLLM.
