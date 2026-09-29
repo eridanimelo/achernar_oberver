@@ -17,6 +17,8 @@ public interface TraceRepository extends JpaRepository<Trace, String>, TraceQuer
     List<Trace> findByStartedAtLessThanEqualOrderByStartedAtAsc(Instant to);
     Optional<Trace> findFirstByTraceIdAndProjectIsNotNullOrderByStartedAtAsc(String traceId);
     Optional<Trace> findFirstBySessionIdAndProjectIsNotNullOrderByStartedAtAsc(String sessionId);
+    Optional<Trace> findFirstBySessionIdAndModelIsNotNullOrderByStartedAtDesc(String sessionId);
+    List<Trace> findBySessionIdOrderByStartedAtAsc(String sessionId);
 
     @Query(value = """
         select coalesce(project, 'UNKNOWN') as project,

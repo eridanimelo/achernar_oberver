@@ -58,18 +58,18 @@ public class ProxyService {
             trace.setModel(text(request, "model"));
             trace.setProject(first(
                     incomingHeaders.getFirst("x-achernar-project"),
-                    metadata.path("project").asText(null)));
+                    metadata.path("project").asString(null)));
             trace.setSessionId(headerOr(
                     metadata, "x-achernar-session", incomingHeaders, "session_id"));
             trace.setAgent(headerOr(
                     metadata, "x-achernar-agent", incomingHeaders, "agent"));
             trace.setTraceId(first(
                     incomingHeaders.getFirst("x-achernar-trace"),
-                    metadata.path("trace_id").asText(null),
+                    metadata.path("trace_id").asString(null),
                     UUID.randomUUID().toString()));
             trace.setParentSpanId(first(
                     incomingHeaders.getFirst("x-achernar-parent-span"),
-                    metadata.path("parent_span_id").asText(null)));
+                    metadata.path("parent_span_id").asString(null)));
 
             if (metadata.isObject()) {
                 trace.setMetadata(objectMapper.convertValue(metadata, Map.class));
@@ -167,7 +167,7 @@ public class ProxyService {
     }
 
     private String text(JsonNode node, String key) {
-        return node.has(key) ? node.get(key).asText(null) : null;
+        return node.has(key) ? node.get(key).asString(null) : null;
     }
 
     private String headerOr(
@@ -175,7 +175,7 @@ public class ProxyService {
             String headerName,
             HttpHeaders headers,
             String metadataKey) {
-        return first(headers.getFirst(headerName), metadata.path(metadataKey).asText(null));
+        return first(headers.getFirst(headerName), metadata.path(metadataKey).asString(null));
     }
 
     private String first(String... values) {

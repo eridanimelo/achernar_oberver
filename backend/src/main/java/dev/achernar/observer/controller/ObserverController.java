@@ -2,9 +2,11 @@ package dev.achernar.observer.controller;
 
 import dev.achernar.observer.model.Trace;
 import dev.achernar.observer.dto.TracePageResponse;
-import dev.achernar.observer.dto.TraceSummary;
+
 import dev.achernar.observer.repository.TraceRepository;
 import dev.achernar.observer.service.ProjectResolver;
+import dev.achernar.observer.service.OpenCodeIngestService;
+import tools.jackson.databind.JsonNode;
 import dev.achernar.observer.service.ProxyService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
@@ -12,10 +14,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
+
 import java.util.UUID;
 import java.util.function.Function;
-import java.util.stream.Collectors;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -40,16 +42,19 @@ public class ObserverController {
     private final TraceRepository traceRepository;
     private final ProjectResolver projectResolver;
     private final LiveTelemetryService liveTelemetry;
+    private final OpenCodeIngestService openCodeIngestService;
 
     public ObserverController(
             ProxyService proxyService,
             TraceRepository traceRepository,
             ProjectResolver projectResolver,
-            LiveTelemetryService liveTelemetry) {
+            LiveTelemetryService liveTelemetry,
+            OpenCodeIngestService openCodeIngestService) {
         this.proxyService = proxyService;
         this.traceRepository = traceRepository;
         this.projectResolver = projectResolver;
         this.liveTelemetry = liveTelemetry;
+        this.openCodeIngestService = openCodeIngestService;
     }
 
     @PostMapping(
@@ -75,6 +80,12 @@ public class ObserverController {
         Trace saved = traceRepository.save(event);
         liveTelemetry.publish("event");
         return saved;
+    }
+
+    @PostMapping(value = "/api/opencode/events", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> openCodeEvent(@RequestBody JsonNode event) {
+        Trace saved = openCodeIngestService.ingest(event);
+        return saved == null ? ResponseEntity.accepted().build() : ResponseEntity.ok(saved);
     }
 
     @GetMapping(value = "/api/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -117,8 +128,44 @@ public class ObserverController {
     @GetMapping("/api/spans/{id}")
     public ResponseEntity<Trace> span(@PathVariable String id) {
         return traceRepository.findById(id)
-                .map(ResponseEntity::ok)
+                .map(trace -> {
+                    // Linhas OpenCode antigas foram salvas sem requestBody e com
+                    // input sem o cache: agrega os irmãos da sessão na leitura e
+                    // persiste, então o detalhe (Fluxo/Conversa/Tools) se cura
+                    // sozinho ao abrir e a lista converge em seguida.
+                    try {
+                        if (trace.getSessionId() != null
+                                && (trace.getRequestBody() == null || trace.getResponseBody() == null
+                                        || needsInputNormalization(trace))) {
+                            String assistantMessageId = assistantMessageIdFrom(trace);
+                            if (openCodeIngestService.enrichFromSession(trace, assistantMessageId)) {
+                                trace.setProject(projectResolver.resolve(trace));
+                                return ResponseEntity.ok(traceRepository.save(trace));
+                            }
+                        }
+                    } catch (RuntimeException ignored) {
+                    }
+                    return ResponseEntity.ok(trace);
+                })
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    private boolean needsInputNormalization(Trace trace) {
+        return "llm".equals(trace.getKind())
+                && trace.getCacheReadTokens() != null && trace.getCacheReadTokens() > 0
+                && (trace.getInputTokens() == null || trace.getInputTokens() < trace.getCacheReadTokens());
+    }
+
+    @SuppressWarnings("unchecked")
+    private String assistantMessageIdFrom(Trace trace) {
+        if (trace.getMetadata() == null) return null;
+        Object raw = trace.getMetadata().get("raw");
+        if (!(raw instanceof Map<?, ?> rawMap)) return null;
+        Object data = rawMap.get("data");
+        if (!(data instanceof Map<?, ?> dataMap)) return null;
+        Object value = ((Map<String, Object>) dataMap).get("assistantMessageID");
+        if (value == null) value = ((Map<String, Object>) dataMap).get("assistantMessageId");
+        return value == null ? null : String.valueOf(value);
     }
 
     @GetMapping("/api/traces/{traceId}")

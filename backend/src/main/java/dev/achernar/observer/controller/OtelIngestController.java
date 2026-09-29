@@ -176,7 +176,7 @@ public class OtelIngestController {
             return result;
         }
         for (JsonNode attribute : attributesNode) {
-            String key = attribute.path("key").asText();
+            String key = attribute.path("key").asString();
             JsonNode value = attribute.path("value");
             result.put(key, anyValue(value));
         }
@@ -184,11 +184,11 @@ public class OtelIngestController {
     }
 
     private Object anyValue(JsonNode value) {
-        if (value.has("stringValue")) return value.get("stringValue").asText();
-        if (value.has("intValue")) return parseLong(value.get("intValue").asText());
+        if (value.has("stringValue")) return value.get("stringValue").asString();
+        if (value.has("intValue")) return parseLong(value.get("intValue").asString());
         if (value.has("doubleValue")) return value.get("doubleValue").asDouble();
         if (value.has("boolValue")) return value.get("boolValue").asBoolean();
-        if (value.has("bytesValue")) return value.get("bytesValue").asText();
+        if (value.has("bytesValue")) return value.get("bytesValue").asString();
         if (value.has("arrayValue")) return objectMapper.convertValue(value.get("arrayValue"), Object.class);
         if (value.has("kvlistValue")) return objectMapper.convertValue(value.get("kvlistValue"), Object.class);
         return objectMapper.convertValue(value, Object.class);
@@ -205,7 +205,7 @@ public class OtelIngestController {
             }
         }
         for (JsonNode event : span.path("events")) {
-            String name = event.path("name").asText("").toLowerCase();
+            String name = event.path("name").asString("").toLowerCase();
             if ((request && (name.contains("input") || name.contains("prompt")))
                     || (!request && (name.contains("output") || name.contains("completion") || name.contains("response")))) {
                 return event.toString();
@@ -245,7 +245,7 @@ public class OtelIngestController {
     private String error(JsonNode span) {
         JsonNode status = span.path("status");
         if (status.path("code").asInt(0) == 2) {
-            return status.path("message").asText("OpenTelemetry span reported an error");
+            return status.path("message").asString("OpenTelemetry span reported an error");
         }
         return null;
     }
@@ -276,7 +276,7 @@ public class OtelIngestController {
 
     private String text(JsonNode node, String field, String defaultValue) {
         JsonNode value = node.get(field);
-        return value == null || value.isNull() ? defaultValue : value.asText();
+        return value == null || value.isNull() ? defaultValue : value.asString();
     }
 
     private long parseLong(String value) {
