@@ -19,14 +19,14 @@ interface ConversationItem {
   toolCallId?: string;
 }
 
-interface FlowNode { id: string; type: 'system' | 'context' | 'file' | 'agent' | 'subagent' | 'skill' | 'rule' | 'mcp' | 'tool' | 'response'; title: string; detail?: string; status?: 'ok' | 'error' | 'info'; level: number; tokens: number; argsPretty?: string; resultPreview?: string; stepIndex: number; fileName?: string; metaName?: string; metaDescription?: string; metaType?: string; }
+interface FlowNode { id: string; type: 'system' | 'context' | 'file' | 'agent' | 'subagent' | 'skill' | 'rule' | 'mcp' | 'tool' | 'response'; title: string; detail?: string; status?: 'ok' | 'error' | 'info'; level: number; parentId?: string | null; tokens: number; argsPretty?: string; resultPreview?: string; stepIndex: number; fileName?: string; metaName?: string; metaDescription?: string; metaType?: string; }
 
 interface ToolCall {
   id?: string;
   name: string;
   arguments?: unknown;
   result?: string;
-  category: 'mcp' | 'tool';
+  category: 'mcp' | 'tool' | 'subagent' | 'skill' | 'rule' | 'agent';
   provider?: string;
 }
 
@@ -466,10 +466,14 @@ export class AppComponent implements OnInit, OnDestroy {
 
           const path = (tool.arguments as any)?.filePath || (tool.arguments as any)?.path;
           const toolTokens = estimateTokens(JSON.stringify(tool.arguments)) + estimateTokens(result);
-          
-          let type: FlowNode['type'] = tool.category === 'mcp' ? 'mcp' : 'tool';
+
+          // A categoria já vem reclassificada (subagent/skill/rule/agent/mcp);
+          // o path só refina file vs doc e o nível hierárquico.
+          let type: FlowNode['type'] = (tool.category as FlowNode['type']) || 'tool';
           let title = tool.name;
-          let level = 0;
+          let level = type === 'subagent' || type === 'agent' ? 1
+            : type === 'skill' || type === 'rule' ? 2
+            : type === 'mcp' ? 0 : 0;
 
           if (path) {
             const normPath = normalizePath(path);
@@ -479,14 +483,27 @@ export class AppComponent implements OnInit, OnDestroy {
             const filename = path.split('/').pop() || path;
             const lower = path.toLowerCase();
 
-            if (lower.endsWith('agents.md')) { type = 'agent'; title = filename; level = 0; activeAgent = true; activeSkill = false; }
-            else if (lower.includes('/agents/') || lower.includes('agent_') || lower.includes('agent-')) { type = 'agent'; title = filename; level = 1; activeAgent = true; activeSkill = false; }
-            else if (lower.includes('subagent')) { type = 'subagent'; title = filename; level = 1; }
-            else if (lower.includes('/skills/') || lower.includes('skill')) { type = 'skill'; title = filename; level = 2; activeSkill = true; }
-            else if (lower.includes('/rules/') || lower.includes('rule') || lower.endsWith('.mdc') || lower.endsWith('rules.md')) { type = 'rule'; title = filename; level = 2; }
-            else { type = 'file'; title = filename; level = activeSkill ? 3 : (activeAgent ? 2 : 1); }
+            if (type === 'tool' || type === 'file') {
+              if (lower.endsWith('agents.md')) { type = 'agent'; title = filename; level = 0; activeAgent = true; activeSkill = false; }
+              else if (lower.includes('/agents/') || lower.includes('agent_') || lower.includes('agent-')) { type = 'agent'; title = filename; level = 1; activeAgent = true; activeSkill = false; }
+              else if (lower.includes('subagent')) { type = 'subagent'; title = filename; level = 1; }
+              else if (lower.includes('/skills/') || lower.includes('skill')) { type = 'skill'; title = filename; level = 2; activeSkill = true; }
+              else if (lower.includes('/rules/') || lower.includes('rule') || lower.endsWith('.mdc') || lower.endsWith('rules.md')) { type = 'rule'; title = filename; level = 2; }
+              else { type = 'file'; title = filename; level = activeSkill ? 3 : (activeAgent ? 2 : 1); }
+            } else {
+              // Tipo semântico já conhecido (ex.: task → subagent): só ajusta
+              // título para o arquivo quando houver path, mantendo nível.
+              title = this.isGenericDocName(tool.name) || tool.name === 'tool' ? filename : tool.name;
+              if (type === 'agent' && level < 1) { level = 1; activeAgent = true; activeSkill = false; }
+              if (type === 'skill' || type === 'rule') { level = 2; if (type === 'skill') activeSkill = true; }
+              if (type === 'subagent' && level < 1) level = 1;
+            }
           } else {
-            level = activeSkill ? 3 : (activeAgent ? 2 : 0);
+            if (type === 'tool' || type === 'mcp' || type === 'file') {
+              level = activeSkill ? 3 : (activeAgent ? 2 : 0);
+              if (!path && type === 'file') type = 'tool';
+            }
+            // subagent/skill/rule/agent sem path mantêm o nível semântico.
           }
 
           // Header com metadata (skills/agents/rules): name + description + tipo.
@@ -560,6 +577,15 @@ export class AppComponent implements OnInit, OnDestroy {
     // (o provider não diz quais nós vieram do cache). Por isso NÃO
     // distribuímos cache por nó aqui. Valores reais ficam no header
     // (selected.inputTokens/cacheReadTokens/outputTokens) e na aba Cache.
+    // Hierarquia pai→filho (orquestrador → agent → skill/rule → file/tool):
+    // a lista continua sequencial (stepIndex), mas cada nó ganha parentId =
+    // o último nó anterior com level menor. O grafo usa parentId nas arestas.
+    const stack: FlowNode[] = [];
+    for (const node of nodes) {
+      while (stack.length && stack[stack.length - 1].level >= node.level) stack.pop();
+      node.parentId = stack.length ? stack[stack.length - 1].id : null;
+      stack.push(node);
+    }
     return nodes;
   }
 
@@ -622,7 +648,9 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   private defaultGraphPos(index: number, level: number): { x: number; y: number } {
-    return { x: level * 260 + 20, y: index * 118 + 20 };
+    // Coluna = profundidade hierárquica; linha = ordem sequencial com
+    // respiro por nível para pais não colidirem com os filhos.
+    return { x: level * 280 + 20, y: index * 128 + 20 };
   }
 
   private nodePos(id: string, index: number, level: number): { x: number; y: number } {
@@ -739,7 +767,7 @@ export class AppComponent implements OnInit, OnDestroy {
       const sub = esc(short(this.flowDisplayDetail(g.node) || this.flowDepthLabel(g.node.level), 34));
       const tokens = esc(this.i18n.t('flow.tokensStep', { n: g.node.tokens, step: g.index + 1 }));
       return `<g>
-        <rect x="${g.x}" y="${g.y}" width="210" height="76" rx="12" fill="#121722" stroke="${color}" stroke-width="1.5"/>
+        <rect x="${g.x}" y="${g.y}" width="240" height="76" rx="12" fill="#121722" stroke="${color}" stroke-width="1.5"/>
         <rect x="${g.x}" y="${g.y}" width="4" height="76" rx="2" fill="${color}"/>
         <circle cx="${g.x - 2}" cy="${g.y - 2}" r="11" fill="#171c28" stroke="#3a4560"/>
         <text x="${g.x - 2}" y="${g.y + 2}" font-size="9" text-anchor="middle" fill="#9aa5bd" font-family="monospace">${g.index + 1}</text>
@@ -816,17 +844,30 @@ export class AppComponent implements OnInit, OnDestroy {
 
   get graphEdges(): Array<{ d: string; isBack: boolean; key: string }> {
     const pos = this.graphNodes;
+    const byId = new Map(pos.map(p => [p.node.id, p]));
     const edges: Array<{ d: string; isBack: boolean; key: string }> = [];
-    for (let i = 1; i < pos.length; i++) {
-      const from = pos[i - 1];
-      const to = pos[i];
-      const x1 = from.x + 210;
-      const y1 = from.y + 36;
+    const edge = (fromId: string, toId: string) => {
+      const from = byId.get(fromId);
+      const to = byId.get(toId);
+      if (!from || !to || fromId === toId) return;
+      const x1 = from.x + 240;
+      const y1 = from.y + 40;
       const x2 = to.x;
-      const y2 = to.y + 36;
+      const y2 = to.y + 40;
       const mx = (x1 + x2) / 2;
       const d = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
-      edges.push({ d, isBack: x2 < x1, key: `${from.node.id}->${to.node.id}` });
+      edges.push({ d, isBack: x2 < x1, key: `${fromId}->${toId}` });
+    };
+    let usedParent = false;
+    for (const p of pos) {
+      if (p.node.parentId && byId.has(p.node.parentId)) {
+        edge(p.node.parentId, p.node.id);
+        usedParent = true;
+      }
+    }
+    // Sem hierarquia inferida (tudo no mesmo nível): cai para o sequencial.
+    if (!usedParent) {
+      for (let i = 1; i < pos.length; i++) edge(pos[i - 1].node.id, pos[i].node.id);
     }
     return edges;
   }
@@ -993,7 +1034,10 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   get provider(): string {
-    return this.asOptionalString(this.attr('gen_ai.provider.name') ?? this.attr('gen_ai.system')) || this.i18n.t('overview.unknown');
+    const meta = this.metadata() as Record<string, unknown>;
+    return this.asOptionalString(this.attr('gen_ai.provider.name') ?? this.attr('gen_ai.system')
+      ?? meta['provider'] ?? meta['origin'])
+      || this.i18n.t('overview.unknown');
   }
 
   get responseModel(): string {
@@ -1161,7 +1205,31 @@ export class AppComponent implements OnInit, OnDestroy {
     return icons[role] || '?';
   }
 
-  toolIcon(tool: ToolCall): string { return tool.category === 'mcp' ? 'M' : 'T'; }
+  toolIcon(tool: ToolCall): string {
+    if (tool.category === 'mcp') return 'M';
+    if (tool.category === 'subagent') return 'S';
+    if (tool.category === 'skill') return 'K';
+    if (tool.category === 'rule') return 'R';
+    if (tool.category === 'agent') return 'A';
+    return 'T';
+  }
+
+  toolCategoryLabel(tool: ToolCall): string {
+    if (tool.category === 'mcp') return 'MCP';
+    if (tool.category === 'subagent') return 'SUBAGENT';
+    if (tool.category === 'skill') return 'SKILL';
+    if (tool.category === 'rule') return 'RULE';
+    if (tool.category === 'agent') return 'AGENT';
+    return 'TOOL';
+  }
+
+  /** Título do pai hierárquico (orquestrador → filho). Lista continua
+   *  sequencial; o grafo desenha pai→filho. */
+  flowParentTitle(node: FlowNode): string | undefined {
+    if (!node.parentId) return undefined;
+    const parent = this.flowNodes.find(n => n.id === node.parentId);
+    return parent ? this.flowDisplayTitle(parent) : undefined;
+  }
 
   private parseMessages(value: unknown): ConversationItem[] {
     const parsed = this.parseUnknown(value);
@@ -1181,14 +1249,51 @@ export class AppComponent implements OnInit, OnDestroy {
   private toToolCall(call: any): ToolCall {
     const name = String(call?.function?.name || call?.name || 'tool');
     const lower = name.toLowerCase();
+    const args = this.parseUnknown(call?.function?.arguments ?? call?.arguments);
     const mcp = lower.startsWith('playwright_') || lower.includes('mcp_') || lower.startsWith('mcp.');
+    // Reclassifica tool genérica → semântica (vale p/ opencode, copilot, claude).
+    // Espelha o backend refineToolKind para curar linhas antigas salvas como "tool".
+    let category: ToolCall['category'] = mcp ? 'mcp' : 'tool';
+    if (!mcp) {
+      if (lower.includes('subagent') || lower === 'task' || lower.startsWith('task_')
+        || lower.includes('delegate') || lower.includes('dispatch') || lower.includes('spawn')
+        || lower.startsWith('agent')) category = 'subagent';
+      else if (lower.includes('skill')) category = 'skill';
+      else if (lower.includes('rule')) category = 'rule';
+      else {
+        const path = this.toolPathArg(args);
+        if (path) {
+          const p = path.toLowerCase();
+          if (p.includes('subagent')) category = 'subagent';
+          else if (p.includes('/skills/') || p.includes('skill')) category = 'skill';
+          else if (p.includes('/agents/') || p.endsWith('agents.md')) category = 'agent';
+          else if (p.includes('/rules/') || p.includes('rule') || p.endsWith('.mdc')) category = 'rule';
+        }
+        if (category === 'tool' && args && typeof args === 'object') {
+          const o = args as Record<string, unknown>;
+          if (o['skill'] != null || o['skillName'] != null) category = 'skill';
+          else if (o['subagent'] != null || o['subagentType'] != null || o['agent'] != null) category = 'subagent';
+        }
+      }
+    }
     return {
       id: call?.id ? String(call.id) : undefined,
       name,
-      arguments: this.parseUnknown(call?.function?.arguments ?? call?.arguments),
-      category: mcp ? 'mcp' : 'tool',
+      arguments: args,
+      category,
       provider: lower.startsWith('playwright_') ? 'Playwright' : mcp ? 'MCP' : undefined
     };
+  }
+
+  private toolPathArg(args: unknown): string | undefined {
+    if (typeof args === 'string') return args.includes('/') || args.includes('.md') ? args : undefined;
+    if (args && typeof args === 'object') {
+      const o = args as Record<string, unknown>;
+      for (const k of ['filePath', 'path', 'file', 'target', 'url']) {
+        if (typeof o[k] === 'string' && (o[k] as string).trim()) return o[k] as string;
+      }
+    }
+    return undefined;
   }
 
   private contentText(content: any): string {

@@ -89,7 +89,7 @@
 .graph-edges{position:absolute;top:0;left:0;overflow:visible;pointer-events:none}
 .graph-edges path{fill:none;stroke:#4a5480;stroke-width:2;opacity:.9}
 .graph-edges path.is-back{stroke:#6f5fe0;stroke-dasharray:6 4}
-.graph-node{position:absolute;width:210px;cursor:grab}
+.graph-node{position:absolute;width:240px;cursor:grab}
 .graph-node.dragging{cursor:grabbing;z-index:10}
 .graph-node.dragging .graph-node-card{border-color:#8f79ef;box-shadow:0 10px 28px rgba(0,0,0,.55)}
 .graph-node{user-select:none;-webkit-user-select:none}
@@ -102,15 +102,18 @@
 .graph-detail-head>span{font-size:8px;font-weight:800;letter-spacing:.8px;color:#707b91}
 .graph-detail-head .mini-btn{padding:4px 8px;font-size:10px}
 .graph-step{position:absolute;top:-9px;left:-9px;width:20px;height:20px;border-radius:50%;background:#171c28;border:1px solid #3a4560;color:#9aa5bd;font-size:9px;display:grid;place-items:center;font-family:monospace;z-index:2}
-.graph-node-card{width:100%;display:flex;align-items:center;gap:8px;text-align:left;font:inherit;color:inherit;background:#121722;border:1px solid #2b3348;border-radius:12px;padding:10px;box-shadow:0 4px 14px rgba(0,0,0,.4);transition:.15s}
+.graph-node-card{width:100%;display:flex;align-items:flex-start;gap:10px;text-align:left;font:inherit;color:inherit;background:#121722;border:1px solid #2b3348;border-radius:12px;padding:10px 10px 10px;box-shadow:0 4px 14px rgba(0,0,0,.4);transition:.15s}
 .graph-node-card:hover{border-color:#6f5fe0;transform:translateY(-1px)}
 .graph-node-card.flow-error{border-color:#7a2f45}
 .graph-node-card .flow-node-icon{flex:0 0 30px;width:30px;height:30px;margin-top:0}
-.graph-node-card .flow-node-text{min-width:0;flex:1}
-.graph-node-card .flow-node-text strong{display:block;font-size:11px;color:#e8ebf5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.graph-node-card .flow-node-text small{display:block;font-size:9px;color:#78849a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.graph-node-card .flow-node-text{min-width:0;flex:1 1 auto}
+.graph-node-card .flow-node-text strong{display:block;font-size:11px;line-height:1.35;color:#e8ebf5;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+.graph-node-card .flow-node-text small{display:block;font-size:9px;line-height:1.4;color:#78849a;white-space:normal;overflow-wrap:anywhere;word-break:break-word;max-width:100%}
 .graph-node-card .flow-type{font-size:8px}
-.graph-node-side{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.graph-node-side{display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex:0 0 auto;margin-left:auto}
+.graph-node-side .token-badge{background:#1a2233;border:1px solid #2c3650;color:#aab3c5;border-radius:6px;padding:2px 6px;font-size:9px;white-space:nowrap}
+/* Linha de tokens abaixo do texto: nunca comprime o título (corrige o "…" forçado) */
+.graph-node-card .graph-tokens-row{margin-top:6px;display:flex;justify-content:flex-start}
 .graph-node-side .token-badge{background:#1a2233;border:1px solid #2c3650;color:#aab3c5;border-radius:6px;padding:2px 6px;font-size:9px;white-space:nowrap}
 .graph-node-side .flow-state{font-size:8px;color:#77ddb8}
 .graph-node-card.flow-error .flow-state{color:#f08aa0}
@@ -152,3 +155,10 @@
 .lang-check{font-size:10px;color:#8f79ef}
 .settings-langs button:not(.on) .lang-check{color:#5f6b83}
 @media(max-width:650px){.settings-pop{position:fixed;top:76px;left:12px;right:12px;width:auto}}
+/* fix tokens sobrepondo texto: texto flexível com quebra, badge nunca comprime */
+.flow-node-card{align-items:flex-start}
+.flow-node-card .flow-node-text{min-width:0;flex:1 1 auto}
+.flow-node-card .flow-node-text strong{display:block;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+.flow-node-card .flow-node-text small{display:block;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+.flow-node-card .flow-node-meta{flex:0 0 auto;margin-left:auto;display:flex;align-items:center;gap:8px}
+.flow-node-card .flow-node-meta .token-badge{white-space:nowrap;flex-shrink:0}

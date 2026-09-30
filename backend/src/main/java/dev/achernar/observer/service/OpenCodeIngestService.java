@@ -56,6 +56,13 @@ public class OpenCodeIngestService implements TelemetryAdapter<JsonNode> {
         String agent = firstText(sources(data, info, properties, payload), "agent", "agentName");
 
         String kind = classify(eventType, data, info, properties);
+        String toolName = firstText(sources(data, info, properties, payload),
+                "tool", "toolName", "name", "function");
+        if (toolName == null) toolName = firstText(sources(node(data, "input"), node(data, "args")), "tool", "toolName", "name");
+        if ("tool".equals(kind) || "mcp".equals(kind)) {
+            kind = refineToolKind(kind, toolName, data, info, properties, payload);
+        }
+        provider = normalizeProvider(provider);
 
         // `session.step.ended` traz os tokens do passo, mas não o modelo; o
         // `session.step.started`/`session.created` da mesma sessão já foi salvo
@@ -140,6 +147,12 @@ public class OpenCodeIngestService implements TelemetryAdapter<JsonNode> {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("source", "opencode");
         metadata.put("provider", provider);
+        // Origem declarada: tool semântica (subagent/skill/rule/agent/mcp/tool).
+        // O front usa toolKind em vez de re-adivinhar por path — resolve o
+        // "tudo vem como tool" mesmo para eventos antigos sem o campo.
+        metadata.put("toolName", toolName);
+        metadata.put("toolKind", kind);
+        metadata.put("origin", originOf(provider, payload, properties, data, info));
         metadata.put("eventType", eventType);
         metadata.put("raw", objectMapper.convertValue(payload, Object.class));
         trace.setMetadata(metadata);
@@ -168,6 +181,87 @@ public class OpenCodeIngestService implements TelemetryAdapter<JsonNode> {
     private boolean hasUsage(JsonNode node) {
         if (node == null || node.isMissingNode() || node.isNull()) return false;
         return node.has("tokens") || node.has("usage") || node.has("cost");
+    }
+
+    /**
+     * Ferramentas semânticas chegam com kind genérico "tool" (task, skill,
+     * leitura de SKILL.md / agents.md / rules). Reclassifica pelo nome da
+     * ferramenta + path dos argumentos para o front exibir subagent / skill /
+     * rule / agent em vez de "TOOL" para tudo.
+     */
+    private String refineToolKind(String initial, String toolName,
+                                  JsonNode data, JsonNode info, JsonNode properties, JsonNode payload) {
+        String name = toolName == null ? "" : toolName.toLowerCase();
+        // Nome da ferramenta manda primeiro (task = subagente no OpenCode,
+        // skill explícita, etc.). Vale para Copilot/Claude com outros nomes.
+        if (name.contains("subagent") || name.equals("task") || name.startsWith("task_")
+                || name.contains("delegate") || name.contains("dispatch")
+                || name.contains("spawn") || name.startsWith("agent")) {
+            return "subagent";
+        }
+        if (name.contains("skill")) return "skill";
+        if (name.contains("rule")) return "rule";
+        // Senão, o path lido nos argumentos decide (SKILL.md, agents/, rules/).
+        String path = firstText(sources(data, info, properties, payload),
+                "filePath", "path", "file", "target", "url");
+        if (path == null) {
+            JsonNode args = firstNode(sources(data, info, properties, payload),
+                    "args", "arguments", "input", "params", "parameters");
+            if (args != null && args.isObject()) {
+                path = firstText(new JsonNode[]{args}, "filePath", "path", "file", "target", "skill", "agent", "rule");
+                if (path == null) {
+                    // skill invocada por nome: {"skill": "minha-skill"} / {"agent": "x"}
+                    String skillArg = firstText(new JsonNode[]{args}, "skill", "skillName");
+                    if (skillArg != null) return "skill";
+                    String agentArg = firstText(new JsonNode[]{args}, "subagent", "subagentType", "agent", "agentName");
+                    if (agentArg != null) return "subagent";
+                }
+            }
+            if (path == null && args != null && args.isTextual()) path = args.asString();
+        }
+        if (path != null) {
+            String lower = path.toLowerCase();
+            if (lower.contains("subagent")) return "subagent";
+            if (lower.contains("/skills/") || lower.contains("skill")) return "skill";
+            if (lower.contains("/agents/") || lower.endsWith("agents.md")
+                    || lower.contains("agent_") || lower.contains("agent-")) return "agent";
+            if (lower.contains("/rules/") || lower.contains("rule")
+                    || lower.endsWith(".mdc") || lower.endsWith("rules.md")) return "rule";
+        }
+        return initial;
+    }
+
+    /**
+     * Normaliza o provider para rótulos conhecidos (copilot, claude, openai…).
+     * O hook pode mandar "github-copilot", "anthropic", "litellm" etc.
+     */
+    private String normalizeProvider(String raw) {
+        if (raw == null || raw.isBlank()) return raw;
+        String lower = raw.trim().toLowerCase();
+        if (lower.contains("copilot") || lower.contains("github")) return "copilot";
+        if (lower.contains("claude") || lower.contains("anthropic")) return "claude";
+        if (lower.contains("openai") || lower.equals("gpt")) return "openai";
+        if (lower.contains("google") || lower.contains("gemini")) return "gemini";
+        if (lower.contains("litellm")) return "litellm";
+        return raw.trim();
+    }
+
+    /** Origem do evento para o front agrupar (opencode/copilot/claude/otel). */
+    private String originOf(String provider, JsonNode... nodes) {
+        String norm = provider == null ? "" : provider.toLowerCase();
+        if (norm.contains("copilot")) return "copilot";
+        if (norm.contains("claude")) return "claude";
+        for (JsonNode node : nodes) {
+            if (node == null || node.isMissingNode() || node.isNull()) continue;
+            String hint = firstText(new JsonNode[]{node}, "origin", "source", "author", "agentClient");
+            if (hint != null) {
+                String h = hint.toLowerCase();
+                if (h.contains("copilot")) return "copilot";
+                if (h.contains("claude")) return "claude";
+                if (h.contains("opencode")) return "opencode";
+            }
+        }
+        return "opencode";
     }
 
     private Integer token(JsonNode[] nodes, String... keys) {

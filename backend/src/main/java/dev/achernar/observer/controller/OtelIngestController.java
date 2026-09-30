@@ -120,8 +120,12 @@ public class OtelIngestController {
     private Trace toTrace(JsonNode span, Map<String, Object> resourceAttributes) {
         Map<String, Object> spanAttributes = attributes(span.path("attributes"));
         Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("source", "otel");
         metadata.put("resource", resourceAttributes);
         metadata.put("attributes", spanAttributes);
+        String otelProvider = firstString(spanAttributes,
+                "gen_ai.provider.name", "gen_ai.system", "litellm.provider", "model_provider");
+        if (otelProvider != null) metadata.put("provider", normalizeOtelProvider(otelProvider));
         if (span.has("events")) {
             metadata.put("events", objectMapper.convertValue(span.path("events"), Object.class));
         }
@@ -318,6 +322,14 @@ public class OtelIngestController {
     private String text(JsonNode node, String field, String defaultValue) {
         JsonNode value = node.get(field);
         return value == null || value.isNull() ? defaultValue : value.asString();
+    }
+
+    private String normalizeOtelProvider(String raw) {
+        if (raw == null) return null;
+        String lower = raw.trim().toLowerCase();
+        if (lower.contains("copilot") || lower.contains("github")) return "copilot";
+        if (lower.contains("claude") || lower.contains("anthropic")) return "claude";
+        return raw.trim();
     }
 
     private long parseLong(String value) {

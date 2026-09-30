@@ -6,16 +6,16 @@
 # as a single multi-platform manifest per tag (no per-arch tags).
 #
 # Usage:
-#   APP_VERSION=2.1.1 ./scripts/docker-publish.sh
-#   ./scripts/docker-publish.sh 2.1.1
-#   ./scripts/docker-publish.sh 2.1.1 latest   # also move :latest (default)
-#   ./scripts/docker-publish.sh 2.1.1 ''       # publish only the version tag
+#   APP_VERSION=2.2.0 ./scripts/docker-publish.sh
+#   ./scripts/docker-publish.sh 2.2.0
+#   ./scripts/docker-publish.sh 2.2.0 latest   # also move :latest (default)
+#   ./scripts/docker-publish.sh 2.2.0 ''       # publish only the version tag
 #
 # Requirements: Docker with buildx + login (docker login).
 # The script is idempotent: re-running it reuses the builder if it exists.
 set -euo pipefail
 
-VERSION="${1:-${APP_VERSION:-2.1.1}}"
+VERSION="${1:-${APP_VERSION:-2.2.0}}"
 EXTRA_TAG="${2:-${EXTRA_TAG:-latest}}"
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 BUILDER_NAME="${BUILDER_NAME:-achernar-builder}"
