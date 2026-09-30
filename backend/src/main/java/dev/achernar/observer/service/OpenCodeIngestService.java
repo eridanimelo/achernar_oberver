@@ -407,6 +407,13 @@ public class OpenCodeIngestService implements TelemetryAdapter<JsonNode> {
         return null;
     }
 
+    /** True when the request already shows this text (avoid persisting a duplicate response). */
+    private boolean alreadyContains(String requestBody, StringBuilder text) {
+        if (requestBody == null || text.length() == 0) return false;
+        String probe = text.length() > 500 ? text.substring(0, 500) : text.toString();
+        return requestBody.contains(probe);
+    }
+
     private String assistantMessageId(JsonNode... nodes) {
         return firstText(sources(nodes), "assistantMessageID", "assistantMessageId", "messageID", "messageId");
     }
@@ -507,7 +514,10 @@ public class OpenCodeIngestService implements TelemetryAdapter<JsonNode> {
                 trace.setRequestBody(messages.toString());
                 changed = true;
             }
-            if (trace.getResponseBody() == null && text.length() > 0) {
+            // The timeline already renders requestBody: persisting the same
+            // aggregated text as responseBody shows the answer twice in the UI.
+            // Only persist a response that adds information beyond the request.
+            if (trace.getResponseBody() == null && text.length() > 0 && !alreadyContains(trace.getRequestBody(), text)) {
                 String response = text.toString();
                 trace.setResponseBody(response.length() > 8000 ? response.substring(0, 8000) : response);
                 changed = true;
@@ -589,7 +599,17 @@ public class OpenCodeIngestService implements TelemetryAdapter<JsonNode> {
         String clean = dir.replaceAll("[/\\\\]+$", "");
         int slash = Math.max(clean.lastIndexOf('/'), clean.lastIndexOf('\\'));
         String base = slash >= 0 ? clean.substring(slash + 1) : clean;
-        return base.isBlank() ? null : base;
+        if (base.isBlank()) return null;
+        // Dot-directories (.ia, .opencode, .cursor) are workspace metadata, never
+        // project names: use the parent folder instead. Editor-agnostic, path-only.
+        if (base.startsWith(".") && slash > 0) {
+            String parent = clean.substring(0, slash).replaceAll("[/\\\\]+$", "");
+            int parentSlash = Math.max(parent.lastIndexOf('/'), parent.lastIndexOf('\\'));
+            String parentBase = parentSlash >= 0 ? parent.substring(parentSlash + 1) : parent;
+            if (!parentBase.isBlank() && !parentBase.startsWith(".")) return parentBase;
+            return null; // parent unusable: let session/default correlation decide
+        }
+        return base;
     }
 
     private String uniqueId(JsonNode payload, JsonNode properties, JsonNode info) {

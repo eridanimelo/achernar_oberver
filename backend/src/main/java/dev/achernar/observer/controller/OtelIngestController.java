@@ -128,10 +128,28 @@ public class OtelIngestController {
                 "model"));
         String project = firstString(spanAttributes,
                 "achernar.project", "metadata.achernar.project", "project", "metadata.project");
+        String projectSource = project != null ? "explicit ACHERNAR metadata" : null;
         if (project == null) project = firstString(resourceAttributes,
                 "achernar.project", "metadata.achernar.project", "project", "metadata.project");
-        if (project == null) project = contextResolver.fromMessages(spanAttributes.get("gen_ai.input.messages"));
+        if (project != null && projectSource == null) projectSource = "OTEL metadata";
+        AchernarContextResolver.ProjectInfo contextProject = null;
+        if (project == null) {
+            // Fallback: PROJECT.yaml content already present in telemetry (span
+            // attributes and/or OTEL events share the same centralized resolver).
+            // Never overrides an explicit project.
+            contextProject = contextResolver.resolve(
+                    spanAttributes.get("gen_ai.input.messages"), span.path("events"));
+            if (contextProject != null) {
+                project = contextProject.name();
+                projectSource = "PROJECT.yaml context";
+            }
+        }
         trace.setProject(project);
+        if (log.isDebugEnabled()) {
+            log.debug("Project {}: {}",
+                    project != null ? "resolved from " + projectSource : "unresolved, deferring to correlation/default",
+                    project != null && project.length() > 100 ? project.substring(0, 100) : project);
+        }
         trace.setSessionId(firstString(spanAttributes,
                 "session.id",
                 "gen_ai.conversation.id",
@@ -162,6 +180,13 @@ public class OtelIngestController {
         trace.setTotalTokens(reportedTotal != null ? reportedTotal : total(trace.getInputTokens(), trace.getOutputTokens()));
         trace.setStatus(status(span));
         trace.setError(error(span));
+        // Optional PROJECT.yaml extras ride along in metadata (no prompt persisted,
+        // no domain migration: Trace.project stays the single grouping key).
+        if (contextProject != null) {
+            if (contextProject.description() != null) metadata.put("achernar.project.description", contextProject.description());
+            if (contextProject.version() != null) metadata.put("achernar.project.version", contextProject.version());
+            if (contextProject.organization() != null) metadata.put("achernar.project.organization", contextProject.organization());
+        }
         trace.setMetadata(metadata);
         if (trace.getKind().equals("llm")) {
             trace.setRequestBody(extractContent(span, spanAttributes, true));

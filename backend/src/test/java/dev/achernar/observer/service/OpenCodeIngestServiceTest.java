@@ -103,6 +103,26 @@ class OpenCodeIngestServiceTest {
         assertEquals("meu-projeto", trace.getProject());
     }
 
+    @Test void dotDirectoryFallsBackToParentFolder() {
+        Trace trace = service.normalize(json("""
+                {"data":{"sessionID":"ses_9"},"created":1790642523531,
+                 "location":{"directory":"/Users/me/DEV/estudo_ia/.ia"},
+                 "id":"evt_6","type":"session.created"}
+                """));
+
+        assertEquals("estudo_ia", trace.getProject());
+    }
+
+    @Test void nestedDotDirectoriesResolveToNull() {
+        Trace trace = service.normalize(json("""
+                {"data":{"sessionID":"ses_9"},"created":1790642523531,
+                 "location":{"directory":"/Users/me/.foo/.bar"},
+                 "id":"evt_7","type":"session.created"}
+                """));
+
+        assertNull(trace.getProject());
+    }
+
     @Test void stepEndedAggregatesSessionSiblingsIntoConversation() {
         when(repository.findFirstBySessionIdAndModelIsNotNullOrderByStartedAtDesc(anyString()))
                 .thenReturn(Optional.empty());
@@ -131,7 +151,23 @@ class OpenCodeIngestServiceTest {
         assertNotNull(trace.getRequestBody(), "Fluxo/Conversa precisam do corpo agregado");
         assertTrue(trace.getRequestBody().contains("Ol\u00e1 mundo"));
         assertTrue(trace.getRequestBody().contains("tool_calls"));
-        assertEquals("Ol\u00e1 mundo", trace.getResponseBody());
+        // O texto agregado já está no corpo: repetir em responseBody
+        // exibiria a resposta duas vezes na aba Conversa.
+        assertNull(trace.getResponseBody(), "resposta igual ao corpo não pode duplicar");
+    }
+
+    @Test void distinctResponseIsStillPersisted() {
+        when(repository.findBySessionIdOrderByStartedAtAsc("ses_123")).thenReturn(java.util.List.of(
+                sibling("evt_d1", "session.text.delta", "msg_1",
+                        java.util.Map.of("delta", "resposta nova", "sessionID", "ses_123", "assistantMessageID", "msg_1"))));
+        Trace trace = new Trace();
+        trace.setId("evt_x");
+        trace.setKind("llm");
+        trace.setSessionId("ses_123");
+        trace.setRequestBody("[{\"role\":\"user\",\"content\":\"pergunta original\"}]");
+
+        assertTrue(service.enrichFromSession(trace, "msg_1"));
+        assertEquals("resposta nova", trace.getResponseBody());
     }
 
     @Test void enrichNormalizesLegacyInputTokens() {

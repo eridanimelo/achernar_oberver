@@ -15,8 +15,13 @@ public interface TraceRepository extends JpaRepository<Trace, String>, TraceQuer
     List<Trace> findByStartedAtBetweenOrderByStartedAtAsc(Instant from, Instant to);
     List<Trace> findByStartedAtGreaterThanEqualOrderByStartedAtAsc(Instant from);
     List<Trace> findByStartedAtLessThanEqualOrderByStartedAtAsc(Instant to);
-    Optional<Trace> findFirstByTraceIdAndProjectIsNotNullOrderByStartedAtAsc(String traceId);
-    Optional<Trace> findFirstBySessionIdAndProjectIsNotNullOrderByStartedAtAsc(String sessionId);
+    // Correlation must skip placeholder rows: the first span of a trace is often a
+    // context-less http/auth span persisted as UNKNOWN, which must not poison
+    // later siblings that carry the real project.
+    Optional<Trace> findFirstByTraceIdAndProjectIsNotNullAndProjectNotIgnoreCaseOrderByStartedAtAsc(
+            String traceId, String excludedProject);
+    Optional<Trace> findFirstBySessionIdAndProjectIsNotNullAndProjectNotIgnoreCaseOrderByStartedAtAsc(
+            String sessionId, String excludedProject);
     Optional<Trace> findFirstBySessionIdAndModelIsNotNullOrderByStartedAtDesc(String sessionId);
     List<Trace> findBySessionIdOrderByStartedAtAsc(String sessionId);
 
