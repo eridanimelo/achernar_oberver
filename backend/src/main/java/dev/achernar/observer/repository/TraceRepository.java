@@ -24,6 +24,13 @@ public interface TraceRepository extends JpaRepository<Trace, String>, TraceQuer
             String sessionId, String excludedProject);
     Optional<Trace> findFirstBySessionIdAndModelIsNotNullOrderByStartedAtDesc(String sessionId);
     List<Trace> findBySessionIdOrderByStartedAtAsc(String sessionId);
+    // Deduplicação OTEL x OpenCode: o mesmo passo do modelo chega duas vezes
+    // (span LiteLLM via OTEL + session.step.ended via plugin) com mesma sessão
+    // e timestamps próximos. Os totais podem divergir (OTEL soma reasoning no
+    // output; o plugin separa output/reasoning), então filtra por sessão+janela
+    // e o serviço decide pelo input + texto da resposta.
+    List<Trace> findBySessionIdAndKindAndStartedAtBetween(
+            String sessionId, String kind, Instant from, Instant to);
 
     @Query(value = """
         select coalesce(project, 'UNKNOWN') as project,

@@ -7,6 +7,7 @@ import dev.achernar.observer.repository.TraceRepository;
 import dev.achernar.observer.service.ProjectResolver;
 import dev.achernar.observer.service.AchernarContextResolver;
 import dev.achernar.observer.service.LiveTelemetryService;
+import dev.achernar.observer.service.TelemetryIngestionService;
 import java.util.ArrayList;
 import java.util.List;
 import java.time.Instant;
@@ -33,14 +34,17 @@ public class OtelIngestController {
     private final ProjectResolver projectResolver;
     private final AchernarContextResolver contextResolver;
     private final LiveTelemetryService liveTelemetry;
+    private final TelemetryIngestionService ingestionService;
 
     public OtelIngestController(TraceRepository repository, ObjectMapper objectMapper,
-                               ProjectResolver projectResolver, AchernarContextResolver contextResolver, LiveTelemetryService liveTelemetry) {
+                               ProjectResolver projectResolver, AchernarContextResolver contextResolver, LiveTelemetryService liveTelemetry,
+                               TelemetryIngestionService ingestionService) {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.projectResolver = projectResolver;
         this.contextResolver = contextResolver;
         this.liveTelemetry = liveTelemetry;
+        this.ingestionService = ingestionService;
     }
 
     @PostMapping(value = "/traces", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -67,6 +71,18 @@ public class OtelIngestController {
                         trace.setProject(projectsByTrace.get(trace.getTraceId()));
                     }
                     trace.setProject(projectResolver.resolve(trace));
+                    // Mesmo passo pode chegar via plugin OpenCode depois/antes:
+                    // funde no gêmeo em vez de criar segunda linha (mesmos tokens).
+                    if ("llm".equals(trace.getKind()) && ingestionService != null) {
+                        try {
+                            if (ingestionService.tryMergeDuplicate(trace).isPresent()) {
+                                liveTelemetry.publish("llm");
+                                continue;
+                            }
+                        } catch (RuntimeException ignored) {
+                            // Segue para o insert normal: dedup nunca pode perder span.
+                        }
+                    }
                     // Persist each span independently. A malformed provider span must not
                     // make the Collector discard the complete OTLP batch.
                     boolean persisted = false;
