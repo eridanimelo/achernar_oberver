@@ -182,6 +182,11 @@ public class ObserverController {
         return traceRepository.findByTraceIdOrderByStartedAtAsc(traceId);
     }
 
+    @GetMapping("/api/sessions/{sessionId}/traces")
+    public List<Trace> sessionTraces(@PathVariable String sessionId) {
+        return traceRepository.findBySessionIdOrderByStartedAtAsc(sessionId);
+    }
+
     @GetMapping("/api/summary")
     public Map<String, Object> summary(
             @RequestParam(required = false) Instant from,

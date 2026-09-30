@@ -120,7 +120,10 @@
     "viewInConversation": "Ver en la Conversación →",
     "partial": "parcial — fin del mensaje",
     "realEmpty": "Todo vino de la caché o el origen OTEL no aportó mensajes para esta ejecución.",
-    "technicalNote": "Span técnico: los tokens de entrada/salida no aplican. Usa duración, estado y metadatos para el análisis."
+    "technicalNote": "Span técnico: los tokens de entrada/salida no aplican. Usa duración, estado y metadatos para el análisis.",
+    "fullSession": "Sesión completa",
+    "fullSessionHint": "Muestra todos los pasos de esta sesión en orden: conversación, flujo, tools/MCP y metadatos agregados. Tokens y caché sumados.",
+    "sessionSteps": "{{n}} pasos"
   },
   "tabs": {
     "overview": "Resumen",

@@ -120,7 +120,10 @@
     "viewInConversation": "View in Conversation →",
     "partial": "partial — end of message",
     "realEmpty": "Everything came from cache, or the OTEL source provided no messages for this run.",
-    "technicalNote": "Technical span: input/output tokens do not apply. Use duration, status and metadata for analysis."
+    "technicalNote": "Technical span: input/output tokens do not apply. Use duration, status and metadata for analysis.",
+    "fullSession": "Full session",
+    "fullSessionHint": "Shows every step of this session in order: aggregated conversation, flow, tools/MCP and metadata. Tokens and cache summed.",
+    "sessionSteps": "{{n}} steps"
   },
   "tabs": {
     "overview": "Overview",

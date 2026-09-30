@@ -25,6 +25,10 @@ export class ObserverService {
     return this.http.get<Span>(`/api/spans/${encodeURIComponent(id)}`).pipe(timeout(API_TIMEOUT_MS));
   }
 
+  getSessionTraces(sessionId: string): Observable<Span[]> {
+    return this.http.get<Span[]>(`/api/sessions/${encodeURIComponent(sessionId)}/traces`).pipe(timeout(API_TIMEOUT_MS));
+  }
+
   clearTraces(): Observable<void> { return this.http.delete<void>('/api/traces'); }
 
   stream(onEvent: () => void): EventSource {

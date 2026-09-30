@@ -46,16 +46,18 @@
         <div class="panel detail-panel wide-detail">
           <div class="panel-head"><div><div class="panel-kicker">{{ 'detail.kicker' | translate }}</div><h2>{{ 'detail.title' | translate }}</h2></div><span class="tag" *ngIf="selected">{{ selected.kind }}</span><span class="tag loading-tag" *ngIf="detailLoading">{{ 'detail.loading' | translate }}</span></div>
           <ng-container *ngIf="selected; else noSelection">
+            <label class="technical-toggle" *ngIf="selected.sessionId"><input type="checkbox" [(ngModel)]="showFullSession" (change)="onToggleFullSession()"> {{ 'detail.fullSession' | translate }}<span *ngIf="sessionLoading"> …</span><span *ngIf="showFullSession && sessionSpans.length"> ({{ 'detail.sessionSteps' | translate:{n: sessionStepCount} }})</span></label>
+            <p class="flow-hint-inline" *ngIf="showFullSession">{{ 'detail.fullSessionHint' | translate }}</p>
             <div class="trace-hero">
               <div><div class="detail-title">{{ selected.model || selected.name }}</div><div class="detail-sub">{{ selected.project || ('executions.unknown' | translate) }} · {{ fmtDateTime(selected.startedAt) }}</div></div>
               <span class="status-pill" [class.ok]="selected.status === 200">● {{ selected.status || ('detail.noStatus' | translate) }}</span>
             </div>
 
             <div class="trace-metrics" *ngIf="selected.kind === 'llm'">
-              <div><span>{{ 'detail.input' | translate }}</span><strong>{{ formatNumber(selected.inputTokens) }}</strong><small>{{ formatInteger(selected.inputTokens) }} {{ 'detail.tokensWord' | translate }}</small></div>
-              <div class="cache"><span>{{ 'detail.cache' | translate }}</span><strong>{{ formatNumber(selected.cacheReadTokens) }}</strong><small>{{ formatDecimal1(selectedCacheRate) }}{{ 'detail.ofInputSuffix' | translate }}</small></div>
+              <div><span>{{ 'detail.input' | translate }}</span><strong>{{ formatNumber(effectiveInputTokens) }}</strong><small>{{ formatInteger(effectiveInputTokens) }} {{ 'detail.tokensWord' | translate }}</small></div>
+              <div class="cache"><span>{{ 'detail.cache' | translate }}</span><strong>{{ formatNumber(effectiveCacheReadTokens) }}</strong><small>{{ formatDecimal1(selectedCacheRate) }}{{ 'detail.ofInputSuffix' | translate }}</small></div>
               <button class="real-input-card" (click)="toggleRealPrompt()" [class.open]="showRealPrompt" [title]="'cacheTab.showReal' | translate"><span>{{ 'detail.realInput' | translate }}</span><strong>{{ formatNumber(selectedRealInput) }}</strong><small>{{ 'detail.notCached' | translate }} · {{ (showRealPrompt ? 'detail.hidePrompt' : 'detail.viewPrompt') | translate }}</small></button>
-              <div><span>{{ 'detail.output' | translate }}</span><strong>{{ formatNumber(selected.outputTokens) }}</strong><small>{{ formatInteger(selected.outputTokens) }} {{ 'detail.tokensWord' | translate }}</small></div>
+              <div><span>{{ 'detail.output' | translate }}</span><strong>{{ formatNumber(effectiveOutputTokens) }}</strong><small>{{ formatInteger(effectiveOutputTokens) }} {{ 'detail.tokensWord' | translate }}</small></div>
             </div>
             <div class="real-prompt-box" *ngIf="selected.kind === 'llm' && showRealPrompt">
               <div class="real-prompt-head"><div><strong>{{ 'detail.realTitle' | translate }}</strong><p>{{ 'detail.realDesc' | translate:{chars: formatInteger(realPromptChars), n: realPromptSegments.length} }}</p></div><button class="ghost mini-btn" (click)="goToConversation()">{{ 'detail.viewInConversation' | translate }}</button></div>
@@ -175,11 +177,11 @@
 
             <div class="tab-content" *ngIf="detailTab === 'conversation'">
               <div class="view-switch"><button [class.on]="dataView === 'friendly'" (click)="dataView = 'friendly'">{{ 'conversation.friendly' | translate }}</button><button [class.on]="dataView === 'json'" (click)="dataView = 'json'">{{ 'conversation.json' | translate }}</button></div>
-              <div class="notice" *ngIf="dataView === 'friendly' && selected.cacheReadTokens && conversation.length">{{ 'conversation.cacheHeuristic' | translate:{n: formatInteger(selected.cacheReadTokens), c: cachedPrefixCount} }}</div>
+              <div class="notice" *ngIf="dataView === 'friendly' && effectiveCacheReadTokens && conversation.length">{{ 'conversation.cacheHeuristic' | translate:{n: formatInteger(effectiveCacheReadTokens), c: cachedPrefixCount} }}</div>
               <div *ngIf="dataView === 'friendly'" class="timeline">
                 <div class="timeline-item" *ngFor="let message of conversation; let i = index" [class.tool-result]="message.role === 'tool'">
                   <div class="timeline-dot" [attr.data-role]="message.role">{{ roleIcon(message.role) }}</div>
-                  <div class="timeline-body"><div class="timeline-head">{{ roleLabel(message.role) }}<span *ngIf="selected.cacheReadTokens && cachePrefixMarks[i]?.state === 'cached'" class="cache-est">{{ 'conversation.cachedEst' | translate }}</span><span *ngIf="selected.cacheReadTokens && cachePrefixMarks[i]?.state === 'partial'" class="cache-est partial">{{ 'conversation.partialEst' | translate }}</span><span *ngIf="selected.cacheReadTokens && cachePrefixMarks[i]?.state === 'fresh'" class="fresh-est">{{ 'conversation.freshEst' | translate }}</span></div><pre class="message-content" *ngIf="message.content">{{ message.content }}</pre>
+                  <div class="timeline-body"><div class="timeline-head">{{ roleLabel(message.role) }}<span *ngIf="effectiveCacheReadTokens && cachePrefixMarks[i]?.state === 'cached'" class="cache-est">{{ 'conversation.cachedEst' | translate }}</span><span *ngIf="effectiveCacheReadTokens && cachePrefixMarks[i]?.state === 'partial'" class="cache-est partial">{{ 'conversation.partialEst' | translate }}</span><span *ngIf="effectiveCacheReadTokens && cachePrefixMarks[i]?.state === 'fresh'" class="fresh-est">{{ 'conversation.freshEst' | translate }}</span></div><pre class="message-content" *ngIf="message.content">{{ message.content }}</pre>
                     <div class="tool-call" *ngFor="let tool of message.toolCalls"><div class="tool-head"><span class="tool-badge" [class.mcp]="tool.category === 'mcp'">{{ tool.category === 'mcp' ? 'MCP' : 'TOOL' }}</span><strong>{{ tool.name }}</strong><small *ngIf="tool.provider">{{ tool.provider }}</small></div><pre *ngIf="tool.arguments != null">{{ prettyJson(tool.arguments) }}</pre><div class="tool-result-box" *ngIf="tool.result"><span>{{ 'conversation.result' | translate }}</span><pre>{{ tool.result }}</pre></div></div>
                   </div>
                 </div>
@@ -199,8 +201,8 @@
 
             <div class="tab-content" *ngIf="detailTab === 'cache'">
               <div class="cache-hero"><div class="cache-ring"><strong>{{ formatDecimal1(selectedCacheRate) }}%</strong><span>{{ 'cacheTab.hit' | translate }}</span></div><div><h3>{{ 'cacheTab.title' | translate }}</h3><p>{{ 'cacheTab.desc' | translate }}</p></div></div>
-              <div class="cache-grid"><div><span>{{ 'cacheTab.totalIn' | translate }}</span><strong>{{ formatInteger(selected.inputTokens) }}</strong></div><div><span>{{ 'cacheTab.read' | translate }}</span><strong>{{ formatInteger(selected.cacheReadTokens) }}</strong></div><div><span>{{ 'cacheTab.nonCached' | translate }}</span><strong>{{ formatInteger(selectedRealInput) }}</strong><button class="ghost mini-btn" style="margin-top:8px" (click)="toggleRealPrompt()">{{ (showRealPrompt ? 'cacheTab.hideReal' : 'cacheTab.showReal') | translate }}</button></div><div><span>{{ 'cacheTab.written' | translate }}</span><strong>{{ formatInteger(selected.cacheWriteTokens) }}</strong></div></div>
-              <div class="cache-bar"><div class="cache-hit" [style.width.%]="selectedCacheRate"></div></div><div class="cache-legend"><span><i class="cached"></i> {{ 'cacheTab.reused' | translate:{n: formatNumber(selected.cacheReadTokens)} }}</span><span><i class="fresh"></i> {{ 'cacheTab.new' | translate:{n: formatNumber(selectedRealInput)} }}</span></div>
+              <div class="cache-grid"><div><span>{{ 'cacheTab.totalIn' | translate }}</span><strong>{{ formatInteger(effectiveInputTokens) }}</strong></div><div><span>{{ 'cacheTab.read' | translate }}</span><strong>{{ formatInteger(effectiveCacheReadTokens) }}</strong></div><div><span>{{ 'cacheTab.nonCached' | translate }}</span><strong>{{ formatInteger(selectedRealInput) }}</strong><button class="ghost mini-btn" style="margin-top:8px" (click)="toggleRealPrompt()">{{ (showRealPrompt ? 'cacheTab.hideReal' : 'cacheTab.showReal') | translate }}</button></div><div><span>{{ 'cacheTab.written' | translate }}</span><strong>{{ formatInteger(effectiveCacheWriteTokens) }}</strong></div></div>
+              <div class="cache-bar"><div class="cache-hit" [style.width.%]="selectedCacheRate"></div></div><div class="cache-legend"><span><i class="cached"></i> {{ 'cacheTab.reused' | translate:{n: formatNumber(effectiveCacheReadTokens)} }}</span><span><i class="fresh"></i> {{ 'cacheTab.new' | translate:{n: formatNumber(selectedRealInput)} }}</span></div>
               <div class="notice">{{ 'cacheTab.notice' | translate }}</div>
             </div>
 

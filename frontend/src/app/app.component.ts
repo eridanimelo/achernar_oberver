@@ -72,11 +72,13 @@ export class AppComponent implements OnInit, OnDestroy {
   flowPanY = 0;
   graphFullscreen = false;
   graphCustomPos = new Map<string, { x: number; y: number }>();
-  draggingNodeId?: string;
-  private nodeDrag?: { id: string; startClientX: number; startClientY: number; origX: number; origY: number; moved: boolean };
+  draggingNodeId?: string;  private nodeDrag?: { id: string; startClientX: number; startClientY: number; origX: number; origY: number; moved: boolean };
   private suppressNodeClick = false;
   private graphDrag?: { startX: number; startY: number; panX: number; panY: number };
   showRealPrompt = false;
+  showFullSession = false;
+  sessionSpans: Span[] = [];
+  sessionLoading = false;
 
   constructor(
     private readonly observerService: ObserverService,
@@ -181,10 +183,71 @@ export class AppComponent implements OnInit, OnDestroy {
     this.graphCustomPos.clear();
     this.resetGraphView();
     this.showRealPrompt = false;
+    this.showFullSession = false;
+    this.sessionSpans = [];
+    this.sessionLoading = false;
     this.observerService.getSpan(span.id).subscribe({
-      next: detail => { this.selected = detail; this.detailLoading = false; this.refreshView(); },
+      next: detail => {
+        this.selected = detail;
+        this.detailLoading = false;
+        this.refreshView();
+        if (this.showFullSession) this.loadSessionSpans();
+      },
       error: () => { this.detailLoading = false; this.refreshView(); }
     });
+  }
+
+  onToggleFullSession(): void {
+    if (this.showFullSession && this.selected?.sessionId) this.loadSessionSpans();
+    this.expandedFlow.clear();
+    this.refreshView();
+  }
+
+  private loadSessionSpans(): void {
+    const sid = this.selected?.sessionId;
+    if (!sid) return;
+    this.sessionLoading = true;
+    this.observerService.getSessionTraces(sid).subscribe({
+      next: rows => {
+        this.sessionSpans = [...(rows || [])].sort((a, b) =>
+          String(a.startedAt).localeCompare(String(b.startedAt)));
+        this.sessionLoading = false;
+        this.refreshView();
+      },
+      error: () => { this.sessionSpans = []; this.sessionLoading = false; this.refreshView(); }
+    });
+  }
+
+  get sessionStepCount(): number {
+    return this.sessionSpans.filter(s => s.kind === 'llm').length || this.sessionSpans.length;
+  }
+
+  get effectiveInputTokens(): number {
+    if (this.showFullSession && this.sessionSpans.length)
+      return this.sessionSpans.reduce((a, s) => a + Number(s.inputTokens || 0), 0);
+    return Number(this.selected?.inputTokens || 0);
+  }
+
+  get effectiveOutputTokens(): number {
+    if (this.showFullSession && this.sessionSpans.length)
+      return this.sessionSpans.reduce((a, s) => a + Number(s.outputTokens || 0), 0);
+    return Number(this.selected?.outputTokens || 0);
+  }
+
+  get effectiveCacheReadTokens(): number {
+    if (this.showFullSession && this.sessionSpans.length)
+      return this.sessionSpans.reduce((a, s) => a + Number(s.cacheReadTokens || 0), 0);
+    return Number(this.selected?.cacheReadTokens || 0);
+  }
+
+  get effectiveCacheWriteTokens(): number {
+    if (this.showFullSession && this.sessionSpans.length)
+      return this.sessionSpans.reduce((a, s) => a + Number(s.cacheWriteTokens || 0), 0);
+    return Number(this.selected?.cacheWriteTokens || 0);
+  }
+
+  get effectiveTotalTokens(): number {
+    return this.effectiveInputTokens + this.effectiveOutputTokens;
   }
 
   onSearchChange(): void {
@@ -215,12 +278,12 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   get selectedCacheRate(): number {
-    const input = Number(this.selected?.inputTokens || 0);
-    return input ? Math.min(100, Number((Number(this.selected?.cacheReadTokens || 0) / input * 100).toFixed(1))) : 0;
+    const input = this.effectiveInputTokens;
+    return input ? Math.min(100, Number((this.effectiveCacheReadTokens / input * 100).toFixed(1))) : 0;
   }
 
   get selectedRealInput(): number {
-    return Math.max(0, Number(this.selected?.inputTokens || 0) - Number(this.selected?.cacheReadTokens || 0));
+    return Math.max(0, this.effectiveInputTokens - this.effectiveCacheReadTokens);
   }
 
   /** Estimativa do prompt REAL (não-cacheado).
@@ -232,7 +295,7 @@ export class AppComponent implements OnInit, OnDestroy {
    *  A mensagem de fronteira vem parcial, marcada com isPartial. */
   get realPromptSegments(): Array<{ role: string; content: string; isPartial: boolean; fullLength: number; toolCalls?: ToolCall[] }> {
     const messages = this.conversation;
-    const input = Number(this.selected?.inputTokens || 0);
+    const input = this.effectiveInputTokens;
     const real = this.selectedRealInput;
     if (!messages.length || !input || !real) return [];
     const effLen = (m: ConversationItem) =>
@@ -281,8 +344,8 @@ export class AppComponent implements OnInit, OnDestroy {
    *  A mensagem de fronteira vem como 'partial'. É estimativa, não fato. */
   get cachePrefixMarks(): Array<{ state: 'cached' | 'partial' | 'fresh' }> {
     const messages = this.conversation;
-    const input = Number(this.selected?.inputTokens || 0);
-    const cached = Number(this.selected?.cacheReadTokens || 0);
+    const input = this.effectiveInputTokens;
+    const cached = this.effectiveCacheReadTokens;
     if (!messages.length) return [];
     if (!input || !cached) return messages.map(() => ({ state: 'fresh' as const }));
     const effLen = (m: ConversationItem) =>
@@ -319,7 +382,11 @@ export class AppComponent implements OnInit, OnDestroy {
   get maxSeries(): number { return Math.max(1, ...this.series.map(item => item.tokens || 0)); }
 
   get conversation(): ConversationItem[] {
-    const messages = this.parseMessages(this.selected?.requestBody);
+    if (this.showFullSession && this.sessionSpans.length) return this.sessionConversation;
+    return this.singleConversation;
+  }
+
+  private linkToolResults(messages: ConversationItem[]): ConversationItem[] {
     const results = new Map<string, string>();
     for (const message of messages) {
       if (message.role === 'tool' && message.toolCallId) results.set(message.toolCallId, message.content);
@@ -330,6 +397,27 @@ export class AppComponent implements OnInit, OnDestroy {
       }
     }
     return messages;
+  }
+
+  get singleConversation(): ConversationItem[] {
+    return this.linkToolResults(this.parseMessages(this.selected?.requestBody));
+  }
+
+  get sessionConversation(): ConversationItem[] {
+    const all: ConversationItem[] = [];
+    for (const span of this.sessionSpans) {
+      for (const m of this.parseMessages(span.requestBody)) all.push(m);
+      const resp = span.responseBody;
+      if (typeof resp === 'string' && resp.trim()) {
+        // Resposta final do passo entra como mensagem assistente quando
+        // ainda não está no corpo agregado (evita conversa vazia).
+        const probe = resp.slice(0, 120);
+        if (!all.some(m => m.role === 'assistant' && (m.content || '').includes(probe))) {
+          all.push({ role: 'assistant', content: resp.length > 8000 ? resp.slice(0, 8000) : resp });
+        }
+      }
+    }
+    return this.linkToolResults(all);
   }
 
   get usedTools(): ToolCall[] {
@@ -447,7 +535,19 @@ export class AppComponent implements OnInit, OnDestroy {
       }
     }
 
-    if (this.selected?.responseBody) {
+    if (this.showFullSession && this.sessionSpans.length) {
+      for (const span of this.sessionSpans) {
+        const resp = span.responseBody;
+        if (resp == null || (typeof resp === 'string' && !resp.trim())) continue;
+        const text = String(resp);
+        nodes.push({
+          id: `flow-${nodes.length}-response`, type: 'response', title: this.i18n.t('flow.nodeResponse'), detail: String(span.model || this.responseModel),
+          status: 'ok', level: 0, tokens: estimateTokens(text),
+          argsPretty: '', resultPreview: this.shortText(text, 600),
+          stepIndex: nodes.length
+        });
+      }
+    } else if (this.selected?.responseBody) {
       nodes.push({
         id: `flow-${nodes.length}-response`, type: 'response', title: this.i18n.t('flow.nodeResponse'), detail: this.responseModel,
         status: 'ok', level: 0, tokens: estimateTokens(String(this.selected.responseBody)),

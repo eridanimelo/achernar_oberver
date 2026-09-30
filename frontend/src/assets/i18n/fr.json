@@ -120,7 +120,10 @@
     "viewInConversation": "Voir dans la Conversation →",
     "partial": "partiel — fin du message",
     "realEmpty": "Tout venait du cache ou la source OTEL n'a fourni aucun message pour cette exécution.",
-    "technicalNote": "Span technique : les tokens d'entrée/sortie ne s'appliquent pas. Utilisez durée, statut et métadonnées pour l'analyse."
+    "technicalNote": "Span technique : les tokens d'entrée/sortie ne s'appliquent pas. Utilisez durée, statut et métadonnées pour l'analyse.",
+    "fullSession": "Session complète",
+    "fullSessionHint": "Affiche toutes les étapes de cette session dans l’ordre : conversation, flux, tools/MCP et métadonnées agrégés. Tokens et cache additionnés.",
+    "sessionSteps": "{{n}} étapes"
   },
   "tabs": {
     "overview": "Aperçu",

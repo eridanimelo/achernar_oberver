@@ -120,7 +120,10 @@
     "viewInConversation": "Vedi nella Conversazione →",
     "partial": "parziale — fine del messaggio",
     "realEmpty": "Tutto dalla cache oppure l'origine OTEL non ha fornito messaggi per questa esecuzione.",
-    "technicalNote": "Span tecnico: i token di input/output non si applicano. Usa durata, stato e metadati per l'analisi."
+    "technicalNote": "Span tecnico: i token di input/output non si applicano. Usa durata, stato e metadati per l'analisi.",
+    "fullSession": "Sessione completa",
+    "fullSessionHint": "Mostra tutti i passaggi di questa sessione in ordine: conversazione, flusso, tools/MCP e metadati aggregati. Token e cache sommati.",
+    "sessionSteps": "{{n}} passi"
   },
   "tabs": {
     "overview": "Panoramica",
